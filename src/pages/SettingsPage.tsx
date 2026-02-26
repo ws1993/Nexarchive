@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Col,
+  Divider,
   Form,
   Input,
   InputNumber,
@@ -21,37 +22,64 @@ export function SettingsPage() {
   const saveConfig = useAppStore((s) => s.saveConfig);
   const savingConfig = useAppStore((s) => s.savingConfig);
 
-  const [apiKey, setApiKey] = useState("");
-  const [testing, setTesting] = useState(false);
+  const [llmApiKey, setLlmApiKey] = useState("");
+  const [mineruToken, setMineruToken] = useState("");
+  const [testingLlm, setTestingLlm] = useState(false);
+  const [testingMineru, setTestingMineru] = useState(false);
 
   useEffect(() => {
-    setApiKey(config.llm.api_key_encrypted);
-  }, [config.llm.api_key_encrypted]);
+    setLlmApiKey(config.llm.api_key_encrypted);
+    setMineruToken(config.mineru.api_token_encrypted);
+  }, [config.llm.api_key_encrypted, config.mineru.api_token_encrypted]);
 
-  const canTest = useMemo(() => {
-    return Boolean(config.llm.base_uri && config.llm.model && apiKey);
-  }, [config.llm.base_uri, config.llm.model, apiKey]);
+  const canTestLlm = useMemo(() => {
+    return Boolean(config.llm.base_uri && config.llm.model && llmApiKey);
+  }, [config.llm.base_uri, config.llm.model, llmApiKey]);
+
+  const canTestMineru = useMemo(() => {
+    return Boolean(config.mineru.enabled && config.mineru.base_uri && mineruToken);
+  }, [config.mineru.enabled, config.mineru.base_uri, mineruToken]);
 
   const onSave = async () => {
     setConfig({
       ...config,
-      llm: { ...config.llm, api_key_encrypted: apiKey }
+      llm: { ...config.llm, api_key_encrypted: llmApiKey },
+      mineru: { ...config.mineru, api_token_encrypted: mineruToken }
     });
     const ok = await saveConfig();
     if (ok) message.success("设置已保存");
   };
 
-  const onTest = async () => {
-    setConfig({
+  const onTestLlm = async () => {
+    const nextConfig = {
       ...config,
-      llm: { ...config.llm, api_key_encrypted: apiKey }
-    });
-    setTesting(true);
+      llm: { ...config.llm, api_key_encrypted: llmApiKey },
+      mineru: { ...config.mineru, api_token_encrypted: mineruToken }
+    };
+    setConfig(nextConfig);
+    setTestingLlm(true);
     try {
+      await api.saveSettings(nextConfig);
       await api.testLlmConnection();
       message.success("模型连通性测试成功");
     } finally {
-      setTesting(false);
+      setTestingLlm(false);
+    }
+  };
+
+  const onTestMineru = async () => {
+    const nextConfig = {
+      ...config,
+      mineru: { ...config.mineru, api_token_encrypted: mineruToken }
+    };
+    setConfig(nextConfig);
+    setTestingMineru(true);
+    try {
+      await api.saveSettings(nextConfig);
+      await api.testMineruConnection();
+      message.success("MinerU 连通性测试成功");
+    } finally {
+      setTestingMineru(false);
     }
   };
 
@@ -87,9 +115,9 @@ export function SettingsPage() {
       </Col>
 
       <Col xs={24} xl={12}>
-        <Card className="section-card" title="大模型设置">
+        <Card className="section-card" title="大模型与解析服务设置">
           <Form layout="vertical">
-            <Form.Item label="Base URI">
+            <Form.Item label="LLM Base URI">
               <Input
                 value={config.llm.base_uri}
                 onChange={(e) =>
@@ -97,7 +125,7 @@ export function SettingsPage() {
                 }
               />
             </Form.Item>
-            <Form.Item label="Model">
+            <Form.Item label="LLM Model">
               <Input
                 value={config.llm.model}
                 onChange={(e) =>
@@ -105,16 +133,94 @@ export function SettingsPage() {
                 }
               />
             </Form.Item>
-            <Form.Item label="API Key">
-              <Input.Password value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+            <Form.Item label="LLM API Key">
+              <Input.Password value={llmApiKey} onChange={(e) => setLlmApiKey(e.target.value)} />
             </Form.Item>
-            <Form.Item label="超时（秒）">
+            <Form.Item label="LLM 超时（秒）">
               <InputNumber
                 min={5}
                 max={180}
                 value={config.llm.timeout_sec}
                 onChange={(v) =>
                   setConfig({ ...config, llm: { ...config.llm, timeout_sec: Number(v ?? 30) } })
+                }
+              />
+            </Form.Item>
+
+            <Divider orientation="left">MinerU 解析服务（可选，失败自动回退本地解析）</Divider>
+
+            <Form.Item label="启用 MinerU">
+              <Switch
+                checked={config.mineru.enabled}
+                onChange={(checked) =>
+                  setConfig({ ...config, mineru: { ...config.mineru, enabled: checked } })
+                }
+              />
+            </Form.Item>
+            <Form.Item label="Base URI">
+              <Input
+                value={config.mineru.base_uri}
+                onChange={(e) =>
+                  setConfig({ ...config, mineru: { ...config.mineru, base_uri: e.target.value } })
+                }
+              />
+            </Form.Item>
+            <Form.Item label="Model Version">
+              <Input
+                value={config.mineru.model_version}
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    mineru: { ...config.mineru, model_version: e.target.value }
+                  })
+                }
+              />
+            </Form.Item>
+            <Form.Item label="Language">
+              <Input
+                value={config.mineru.language}
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    mineru: { ...config.mineru, language: e.target.value }
+                  })
+                }
+              />
+            </Form.Item>
+            <Form.Item label="OCR 模式">
+              <Switch
+                checked={config.mineru.is_ocr}
+                onChange={(checked) =>
+                  setConfig({ ...config, mineru: { ...config.mineru, is_ocr: checked } })
+                }
+              />
+            </Form.Item>
+            <Form.Item label="Token">
+              <Input.Password value={mineruToken} onChange={(e) => setMineruToken(e.target.value)} />
+            </Form.Item>
+            <Form.Item label="请求超时（秒）">
+              <InputNumber
+                min={5}
+                max={300}
+                value={config.mineru.timeout_sec}
+                onChange={(v) =>
+                  setConfig({
+                    ...config,
+                    mineru: { ...config.mineru, timeout_sec: Number(v ?? 60) }
+                  })
+                }
+              />
+            </Form.Item>
+            <Form.Item label="任务最大等待（秒）">
+              <InputNumber
+                min={30}
+                max={1800}
+                value={config.mineru.max_wait_sec}
+                onChange={(v) =>
+                  setConfig({
+                    ...config,
+                    mineru: { ...config.mineru, max_wait_sec: Number(v ?? 300) }
+                  })
                 }
               />
             </Form.Item>
@@ -191,8 +297,11 @@ export function SettingsPage() {
             <Button type="primary" loading={savingConfig} onClick={onSave}>
               保存设置
             </Button>
-            <Button disabled={!canTest} loading={testing} onClick={onTest}>
+            <Button disabled={!canTestLlm} loading={testingLlm} onClick={onTestLlm}>
               测试模型连通性
+            </Button>
+            <Button disabled={!canTestMineru} loading={testingMineru} onClick={onTestMineru}>
+              测试 MinerU 连通性
             </Button>
           </Space>
         </Card>

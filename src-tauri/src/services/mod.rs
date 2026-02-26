@@ -4,5 +4,6 @@ pub mod extractor_service;
 pub mod init_service;
 pub mod llm_service;
 pub mod logging_service;
+pub mod mineru_service;
 pub mod scheduler_service;
 pub mod system_service;

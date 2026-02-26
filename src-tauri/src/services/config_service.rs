@@ -38,6 +38,10 @@ impl ConfigService {
         if config.llm.api_key_encrypted.starts_with(ENC_PREFIX) {
             config.llm.api_key_encrypted = self.decrypt_api_key(&config.llm.api_key_encrypted)?;
         }
+        if config.mineru.api_token_encrypted.starts_with(ENC_PREFIX) {
+            config.mineru.api_token_encrypted =
+                self.decrypt_api_key(&config.mineru.api_token_encrypted)?;
+        }
 
         Ok(config)
     }
@@ -48,6 +52,11 @@ impl ConfigService {
             && !disk.llm.api_key_encrypted.starts_with(ENC_PREFIX)
         {
             disk.llm.api_key_encrypted = self.encrypt_api_key(&disk.llm.api_key_encrypted)?;
+        }
+        if !disk.mineru.api_token_encrypted.is_empty()
+            && !disk.mineru.api_token_encrypted.starts_with(ENC_PREFIX)
+        {
+            disk.mineru.api_token_encrypted = self.encrypt_api_key(&disk.mineru.api_token_encrypted)?;
         }
 
         let content = serde_json::to_string_pretty(&disk)?;

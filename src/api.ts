@@ -24,6 +24,7 @@ export const api = {
   loadSettings: () => invoke<AppConfig>("load_settings"),
 
   testLlmConnection: () => invoke<boolean>("test_llm_connection"),
+  testMineruConnection: () => invoke<boolean>("test_mineru_connection"),
 
   runJobOnce: () => invoke<string>("run_job_once"),
 

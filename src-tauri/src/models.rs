@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct LLMConfig {
     pub base_uri: String,
     pub api_key_encrypted: String,
@@ -20,6 +21,35 @@ impl Default for LLMConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MineruConfig {
+    pub enabled: bool,
+    pub base_uri: String,
+    pub api_token_encrypted: String,
+    pub model_version: String,
+    pub language: String,
+    pub is_ocr: bool,
+    pub timeout_sec: u64,
+    pub max_wait_sec: u64,
+}
+
+impl Default for MineruConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            base_uri: "https://mineru.net/api/v4".to_string(),
+            api_token_encrypted: String::new(),
+            model_version: "vlm".to_string(),
+            language: "ch".to_string(),
+            is_ocr: true,
+            timeout_sec: 60,
+            max_wait_sec: 300,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct RetentionConfig {
     pub max_log_file_mb: usize,
     pub max_log_files: usize,
@@ -39,6 +69,7 @@ impl Default for RetentionConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppConfig {
     pub inbox_path: String,
     pub archive_root_path: String,
@@ -46,6 +77,7 @@ pub struct AppConfig {
     pub run_in_background: bool,
     pub schedule_hours: u64,
     pub llm: LLMConfig,
+    pub mineru: MineruConfig,
     pub retention: RetentionConfig,
 }
 
@@ -58,6 +90,7 @@ impl Default for AppConfig {
             run_in_background: true,
             schedule_hours: 24,
             llm: LLMConfig::default(),
+            mineru: MineruConfig::default(),
             retention: RetentionConfig::default(),
         }
     }

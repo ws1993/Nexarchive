@@ -17,9 +17,11 @@ use crate::{
     constants::{top_dir_name, SUPPORTED_EXTENSIONS},
     models::{AppConfig, FileTaskRecord, JobRecord, LogFilters, PagedResult, TriggerType},
     services::{
-        config_service::ConfigService, db_service::DbService, extractor_service::ExtractorService,
+        config_service::ConfigService, db_service::DbService,
+        extractor_service::{ExtractedContent, ExtractorService},
         init_service::InitService, llm_service::LlmService, logging_service::LoggingService,
-        scheduler_service::SchedulerService, system_service::SystemService,
+        mineru_service::MineruService, scheduler_service::SchedulerService,
+        system_service::SystemService,
     },
     utils::path_utils::{
         ensure_parent, sanitize_filename_component, sanitize_relative_subpath, unique_path,
@@ -32,6 +34,7 @@ pub struct AppState {
     logger: Arc<LoggingService>,
     init_service: InitService,
     extractor: ExtractorService,
+    mineru: MineruService,
     llm: LlmService,
     pub scheduler: SchedulerService,
     config: RwLock<AppConfig>,
@@ -73,6 +76,7 @@ impl AppState {
             logger,
             init_service: InitService,
             extractor: ExtractorService::new(),
+            mineru: MineruService::new(),
             llm: LlmService::new(),
             scheduler: SchedulerService::new(),
             config: RwLock::new(config),
@@ -156,6 +160,14 @@ impl AppState {
         self.llm.test_connection(&config).await?;
         self.logger
             .info("llm", "connection test success", None, None, None);
+        Ok(true)
+    }
+
+    pub async fn test_mineru_connection(&self) -> Result<bool> {
+        let config = self.current_config();
+        self.mineru.test_connection(&config).await?;
+        self.logger
+            .info("mineru", "connection test success", None, None, None);
         Ok(true)
     }
 
@@ -355,7 +367,10 @@ impl AppState {
             return Ok(ProcessOutcome::Skipped);
         }
 
-        let extracted = match self.extractor.extract(file_path).await {
+        let extracted = match self
+            .extract_with_fallback(job_id, &task_id, file_path, config)
+            .await
+        {
             Ok(v) => {
                 task.extract_status = "success".to_string();
                 self.db.update_file_task(&task)?;
@@ -540,6 +555,62 @@ impl AppState {
         );
 
         Ok(ProcessOutcome::Success)
+    }
+
+    async fn extract_with_fallback(
+        &self,
+        job_id: &str,
+        task_id: &str,
+        file_path: &Path,
+        config: &AppConfig,
+    ) -> Result<ExtractedContent> {
+        let ext = file_path
+            .extension()
+            .and_then(|v| v.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+
+        if self.mineru.is_configured(config) && MineruService::supports_extension(&ext) {
+            match self.mineru.extract(config, file_path).await {
+                Ok(extracted) if !extracted.text.trim().is_empty() => {
+                    self.logger.info(
+                        "extract",
+                        "mineru extract success",
+                        Some(job_id),
+                        Some(task_id),
+                        Some(json!({"file": file_path.display().to_string()})),
+                    );
+                    return Ok(extracted);
+                }
+                Ok(_) => {
+                    self.logger.warn(
+                        "extract",
+                        "mineru returned empty text; fallback to local extractor",
+                        Some(job_id),
+                        Some(task_id),
+                        Some(json!({"file": file_path.display().to_string()})),
+                    );
+                }
+                Err(err) => {
+                    self.logger.warn(
+                        "extract",
+                        "mineru extract failed; fallback to local extractor",
+                        Some(job_id),
+                        Some(task_id),
+                        Some(json!({"file": file_path.display().to_string(), "error": err.to_string()})),
+                    );
+                }
+            }
+        }
+
+        if matches!(ext.as_str(), "doc" | "ppt") && !self.mineru.is_configured(config) {
+            anyhow::bail!(
+                "file extension .{} requires MinerU parser; please configure token in settings",
+                ext
+            );
+        }
+
+        self.extractor.extract(file_path).await
     }
 
     fn fail_task(

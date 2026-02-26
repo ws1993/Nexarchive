@@ -50,6 +50,11 @@ async fn test_llm_connection(state: State<'_, Arc<AppState>>) -> Result<bool, St
 }
 
 #[tauri::command]
+async fn test_mineru_connection(state: State<'_, Arc<AppState>>) -> Result<bool, String> {
+    state.test_mineru_connection().await.map_err(err_to_string)
+}
+
+#[tauri::command]
 async fn run_job_once(state: State<'_, Arc<AppState>>) -> Result<String, String> {
     state.run_job_once().await.map_err(err_to_string)
 }
@@ -161,6 +166,7 @@ pub fn run() {
             save_settings,
             load_settings,
             test_llm_connection,
+            test_mineru_connection,
             run_job_once,
             get_jobs,
             get_file_tasks,

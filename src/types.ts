@@ -7,6 +7,17 @@ export interface LLMConfig {
   timeout_sec: number;
 }
 
+export interface MineruConfig {
+  enabled: boolean;
+  base_uri: string;
+  api_token_encrypted: string;
+  model_version: string;
+  language: string;
+  is_ocr: boolean;
+  timeout_sec: number;
+  max_wait_sec: number;
+}
+
 export interface RetentionConfig {
   max_log_file_mb: number;
   max_log_files: number;
@@ -21,6 +32,7 @@ export interface AppConfig {
   run_in_background: boolean;
   schedule_hours: number;
   llm: LLMConfig;
+  mineru: MineruConfig;
   retention: RetentionConfig;
 }
 
@@ -90,6 +102,16 @@ export const defaultConfig: AppConfig = {
     api_key_encrypted: "",
     model: "gpt-4o-mini",
     timeout_sec: 30
+  },
+  mineru: {
+    enabled: false,
+    base_uri: "https://mineru.net/api/v4",
+    api_token_encrypted: "",
+    model_version: "vlm",
+    language: "ch",
+    is_ocr: true,
+    timeout_sec: 60,
+    max_wait_sec: 300
   },
   retention: {
     max_log_file_mb: 10,

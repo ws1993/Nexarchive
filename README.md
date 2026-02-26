@@ -11,8 +11,8 @@ NexArchive is a Windows desktop app for local file auto-archiving.
 - Scheduled processing by hours and manual run.
 - LLM classification (OpenAI-compatible Chat Completions API).
 - File extraction pipeline for:
-  - `txt`, `md`, `pdf`, `docx`, `xlsx`, `pptx` (built-in Rust extractor)
-  - `jpg`, `jpeg`, `png` (sent directly to multimodal LLM endpoint)
+  - MinerU API (optional, primary): `pdf`, `doc`, `docx`, `ppt`, `pptx`, `jpg`, `jpeg`, `png`
+  - Built-in Rust fallback: `txt`, `md`, `pdf`, `docx`, `xlsx`, `pptx`, `jpg`, `jpeg`, `png`
 - Rename template: `YYYYMMDD_文档类型_核心标题[#标签][@人物][&备注].扩展名`.
 - Controlled vocabulary + top-level folder constraints.
 - Archive top-level folders use Chinese names: `10_身份基石`, `20_责任领域`, `30_行动项目`, `40_知识金库`, `50_数字资产`, `99_历史档案`.
@@ -30,6 +30,7 @@ NexArchive is a Windows desktop app for local file auto-archiving.
 - `save_settings(config)`
 - `load_settings()`
 - `test_llm_connection()`
+- `test_mineru_connection()`
 - `run_job_once()`
 - `get_jobs(page, page_size, status, date_range)`
 - `get_file_tasks(job_id, status)`
@@ -57,6 +58,17 @@ cargo check
 ```bash
 npm run tauri dev
 ```
+
+## Build Installer (Windows)
+
+```bash
+npm run tauri build
+```
+
+Build outputs:
+
+- `src-tauri/target/release/bundle/msi/NexArchive_<version>_x64_en-US.msi`
+- `src-tauri/target/release/bundle/nsis/NexArchive_<version>_x64-setup.exe`
 
 ## Notes
 
