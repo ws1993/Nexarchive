@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   Row,
+  Space,
   Tree,
   Typography
 } from "antd";
@@ -56,49 +57,54 @@ export function InitWizardPage() {
   };
 
   return (
-    <Row gutter={[16, 16]}>
-      <Col xs={24} xl={10}>
-        <Card className="section-card" title="初始化向导">
-          <Alert
-            showIcon
-            type="info"
-            message="首次使用请先配置路径并执行初始化。Inbox 使用你单独配置的路径，不会在归档根目录重复创建 00_收件箱。"
-          />
-          <Divider />
-          <Form layout="vertical">
-            <Form.Item label="Inbox 路径">
-              <Input
-                value={config.inbox_path}
-                placeholder="例如: E:\\收件箱"
-                onChange={(e) => setConfig({ ...config, inbox_path: e.target.value })}
-              />
-            </Form.Item>
-            <Form.Item label="Archive Root 路径">
-              <Input
-                value={config.archive_root_path}
-                placeholder="例如: E:\\个人档案库"
-                onChange={(e) => setConfig({ ...config, archive_root_path: e.target.value })}
-              />
-            </Form.Item>
-            <Button type="primary" onClick={onInit} loading={working}>
-              一键初始化目录结构
-            </Button>
-          </Form>
-        </Card>
-      </Col>
+    <Space direction="vertical" size="middle" style={{ width: "100%", paddingBottom: 24 }}>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={10}>
+          <Card className="section-card" title="初始化向导" style={{ height: "100%" }}>
+            <Alert
+              showIcon
+              type="info"
+              message="首次使用请先配置路径并执行初始化。Inbox 使用你单独配置的路径，不会在归档根目录重复创建 00_收件箱。"
+              style={{ marginBottom: 24 }}
+            />
+            <Form layout="vertical">
+              <Form.Item label="Inbox 路径">
+                <Input
+                  value={config.inbox_path}
+                  placeholder="例如: E:\\收件箱"
+                  onChange={(e) => setConfig({ ...config, inbox_path: e.target.value })}
+                />
+              </Form.Item>
+              <Form.Item label="Archive Root 路径">
+                <Input
+                  value={config.archive_root_path}
+                  placeholder="例如: E:\\个人档案库"
+                  onChange={(e) => setConfig({ ...config, archive_root_path: e.target.value })}
+                />
+              </Form.Item>
+              <Row justify="end" style={{ marginTop: 16 }}>
+                <Button type="primary" onClick={onInit} loading={working} size="large">
+                  一键初始化目录结构
+                </Button>
+              </Row>
+            </Form>
+          </Card>
+        </Col>
 
-      <Col xs={24} xl={14}>
-        <Card className="section-card" title="结构预览">
-          <Typography.Text type="secondary">
-            结构来源于 reference.md 的附录规则。
-          </Typography.Text>
-          <Divider />
-          <Tree
-            defaultExpandAll
-            treeData={preview.map((v, idx) => toTreeNode(v, `${idx}_`))}
-          />
-        </Card>
-      </Col>
-    </Row>
+        <Col xs={24} lg={14}>
+          <Card className="section-card" title="结构预览" style={{ height: "100%" }}>
+            <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+              结构来源于 reference.md 的附录规则。
+            </Typography.Text>
+            <div style={{ maxHeight: 400, overflowY: 'auto', padding: '0 8px' }}>
+              <Tree
+                defaultExpandAll
+                treeData={preview.map((v, idx) => toTreeNode(v, `${idx}_`))}
+              />
+            </div>
+          </Card>
+        </Col>
+      </Row>
+    </Space>
   );
 }
