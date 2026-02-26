@@ -334,6 +334,12 @@ impl AppState {
         config: &AppConfig,
     ) -> Result<ProcessOutcome> {
         let task_id = next_time_id();
+        let ext = file_path
+            .extension()
+            .and_then(|v| v.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        let is_image_input = is_image_extension(&ext);
         let fingerprint = build_fingerprint(file_path)?;
 
         let mut task = FileTaskRecord {
@@ -370,24 +376,37 @@ impl AppState {
             return Ok(ProcessOutcome::Skipped);
         }
 
-        let extracted = match self
-            .extract_with_fallback(job_id, &task_id, file_path, config)
-            .await
-        {
-            Ok(v) => {
-                task.extract_status = "success".to_string();
-                self.db.update_file_task(&task)?;
-                v
-            }
-            Err(err) => {
-                return self.fail_task(
-                    task,
-                    file_path,
-                    config,
-                    "extract_failed",
-                    &err.to_string(),
-                    "提取",
-                );
+        let extracted = if is_image_input {
+            self.logger.info(
+                "提取",
+                "图片文件直接交由模型识别",
+                Some(job_id),
+                Some(&task_id),
+                Some(json!({"file": file_path.display().to_string()})),
+            );
+            task.extract_status = "skipped".to_string();
+            self.db.update_file_task(&task)?;
+            ExtractedContent { text: String::new() }
+        } else {
+            match self
+                .extract_with_fallback(job_id, &task_id, file_path, config)
+                .await
+            {
+                Ok(v) => {
+                    task.extract_status = "success".to_string();
+                    self.db.update_file_task(&task)?;
+                    v
+                }
+                Err(err) => {
+                    return self.fail_task(
+                        task,
+                        file_path,
+                        config,
+                        "extract_failed",
+                        &err.to_string(),
+                        "提取",
+                    );
+                }
             }
         };
 
@@ -406,7 +425,7 @@ impl AppState {
                         config,
                         file_name,
                         &extracted.text,
-                        extracted.image_data_url.as_deref(),
+                        if is_image_input { Some(file_path) } else { None },
                     )
                     .await
                 {
@@ -467,12 +486,6 @@ impl AppState {
 
             return Ok(ProcessOutcome::Review);
         }
-
-        let ext = file_path
-            .extension()
-            .and_then(|v| v.to_str())
-            .unwrap_or_default()
-            .to_ascii_lowercase();
 
         let file_date = file_best_date(file_path).format("%Y%m%d").to_string();
         let mut new_name = format!(
@@ -683,6 +696,10 @@ fn beijing_now_rfc3339() -> String {
 fn beijing_now() -> DateTime<FixedOffset> {
     let offset = FixedOffset::east_opt(8 * 60 * 60).expect("valid UTC+8 offset");
     Utc::now().with_timezone(&offset)
+}
+
+fn is_image_extension(ext: &str) -> bool {
+    matches!(ext, "jpg" | "jpeg" | "png")
 }
 
 fn resolve_app_data_dir() -> Result<PathBuf> {

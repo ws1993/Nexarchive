@@ -5,14 +5,12 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use base64::{engine::general_purpose::STANDARD, Engine};
 use zip::ZipArchive;
 
 pub struct ExtractorService;
 
 pub struct ExtractedContent {
     pub text: String,
-    pub image_data_url: Option<String>,
 }
 
 impl ExtractorService {
@@ -33,35 +31,22 @@ impl ExtractorService {
                     .with_context(|| format!("read text failed: {}", file_path.display()))?;
                 Ok(ExtractedContent {
                     text: limit_text(text),
-                    image_data_url: None,
                 })
             }
             "docx" => Ok(ExtractedContent {
                 text: extract_docx(file_path)?,
-                image_data_url: None,
             }),
             "xlsx" => Ok(ExtractedContent {
                 text: extract_xlsx(file_path)?,
-                image_data_url: None,
             }),
             "pptx" => Ok(ExtractedContent {
                 text: extract_pptx(file_path)?,
-                image_data_url: None,
             }),
             "pdf" => Ok(ExtractedContent {
                 text: extract_pdf(file_path)?,
-                image_data_url: None,
             }),
             "jpg" | "jpeg" | "png" => {
-                let mime = if ext == "png" {
-                    "image/png"
-                } else {
-                    "image/jpeg"
-                };
-                Ok(ExtractedContent {
-                    text: String::new(),
-                    image_data_url: Some(read_image_as_data_url(file_path, mime)?),
-                })
+                anyhow::bail!("image files should be sent directly to llm classify");
             }
             _ => anyhow::bail!("unsupported extension: {}", ext),
         }
@@ -162,12 +147,6 @@ fn extract_pdf(path: &Path) -> Result<String> {
     }
 
     Ok(limit_text(pieces.join("\n")))
-}
-
-fn read_image_as_data_url(path: &Path, mime: &str) -> Result<String> {
-    let bytes = fs::read(path).with_context(|| format!("read image failed: {}", path.display()))?;
-    let b64 = STANDARD.encode(bytes);
-    Ok(format!("data:{};base64,{}", mime, b64))
 }
 
 fn clean_xml_text(xml: &str) -> String {

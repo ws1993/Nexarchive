@@ -1,4 +1,7 @@
+use std::{fs, path::Path};
+
 use anyhow::{Context, Result};
+use base64::{engine::general_purpose::STANDARD, Engine};
 use reqwest::Client;
 use serde_json::json;
 
@@ -55,16 +58,17 @@ impl LlmService {
         config: &AppConfig,
         file_name: &str,
         content: &str,
-        image_data_url: Option<&str>,
+        image_file_path: Option<&Path>,
     ) -> Result<LlmClassification> {
         validate_llm_base(config)?;
 
         let endpoint = chat_endpoint(&config.llm.base_uri);
-        let prompt = build_prompt(file_name, content, image_data_url.is_some());
-        let user_content = if let Some(url) = image_data_url {
+        let prompt = build_prompt(file_name, content, image_file_path.is_some());
+        let user_content = if let Some(path) = image_file_path {
+            let image_data_url = image_path_to_data_url(path)?;
             json!([
               {"type": "text", "text": prompt},
-              {"type": "image_url", "image_url": {"url": url}}
+              {"type": "image_url", "image_url": {"url": image_data_url}}
             ])
         } else {
             json!(prompt)
@@ -160,10 +164,30 @@ fn chat_endpoint(base_uri: &str) -> String {
 }
 
 fn system_prompt() -> String {
-    let vocab = CONTROLLED_VOCAB.join(", ");
+    let vocab = CONTROLLED_VOCAB.join("、");
     format!(
-    "You are a strict file classification engine. Return ONLY JSON with keys: doc_type, core_title, tags, people, note, target_top_dir, target_subpath, confidence. doc_type must be one of: [{vocab}]. target_top_dir must be one of [10,20,30,40,50,99]. target_subpath must be a relative path using / separators without .. . confidence must be a float 0..1."
-  )
+        r#"You are a strict file classification engine for a personal knowledge management system.
+
+## Directory Structure
+- 10 (身份基石): Identity, legal documents, certificates, health records, financial credentials
+- 20 (责任领域): Ongoing responsibilities — finance, health, housing, career management
+- 30 (行动项目): Active projects with goals and deadlines
+- 40 (知识金库): Learning materials, research, books, notes, templates
+- 50 (数字资产): Media, creative works, software resources
+- 99 (历史档案): Completed or expired items to be archived
+
+## Rules
+1. doc_type MUST be one of: [{vocab}]
+2. target_top_dir MUST be one of: [10, 20, 30, 40, 50, 99]
+3. target_subpath: relative path using "/" separators, no "..", no drive letters, max 2 levels deep, use Chinese folder names matching the directory structure (e.g. "财务管理/保险", "健康管理")
+4. core_title: concise Chinese title, 4–16 characters, no punctuation, no date prefix, no doc_type prefix
+5. tags: 0–3 short keywords relevant to the content
+6. people: names of people mentioned (empty if none)
+7. note: one-sentence remark only if truly necessary, otherwise null
+8. confidence: float 0.0–1.0 reflecting classification certainty
+
+Return ONLY a JSON object, no markdown, no explanation."#
+    )
 }
 
 fn build_prompt(file_name: &str, content: &str, has_image: bool) -> String {
@@ -173,14 +197,14 @@ fn build_prompt(file_name: &str, content: &str, has_image: bool) -> String {
     }
 
     let mode = if has_image {
-        "This request includes an image. Use the image as the primary source and text excerpt as secondary context."
+        "An image is attached — treat it as the primary source; use the text excerpt as supplementary context."
     } else {
-        "This request is text-first. Use the text excerpt as the primary source."
+        "No image. Use the text excerpt as the primary source."
     };
 
     format!(
-    "File name: {file_name}\n{mode}\n\nContent excerpt:\n{excerpt}\n\nClassify and respond as JSON only."
-  )
+        "File name: {file_name}\n{mode}\n\nContent excerpt:\n{excerpt}\n\nRespond with a single JSON object only. All string values must be in Chinese unless they are proper nouns."
+    )
 }
 
 fn message_content_to_string(content_node: &serde_json::Value) -> Option<String> {
@@ -252,6 +276,23 @@ fn validate_classification(result: &LlmClassification) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn image_path_to_data_url(path: &Path) -> Result<String> {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        _ => anyhow::bail!("unsupported image extension for llm classify: {}", ext),
+    };
+    let bytes = fs::read(path)
+        .with_context(|| format!("read image for llm classify failed: {}", path.display()))?;
+    let b64 = STANDARD.encode(bytes);
+    Ok(format!("data:{};base64,{}", mime, b64))
 }
 
 #[cfg(test)]

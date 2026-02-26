@@ -66,10 +66,7 @@ impl MineruService {
     }
 
     pub fn supports_extension(ext: &str) -> bool {
-        matches!(
-            ext,
-            "pdf" | "doc" | "docx" | "ppt" | "pptx" | "jpg" | "jpeg" | "png"
-        )
+        matches!(ext, "pdf" | "doc" | "docx" | "ppt" | "pptx")
     }
 
     pub async fn test_connection(&self, config: &AppConfig) -> Result<()> {
@@ -118,7 +115,6 @@ impl MineruService {
 
         Ok(ExtractedContent {
             text: limit_text(text),
-            image_data_url: None,
         })
     }
 
@@ -559,7 +555,7 @@ fn preview(content: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_create_batch_response;
+    use super::{parse_create_batch_response, MineruService};
     use serde_json::json;
 
     #[test]
@@ -602,5 +598,14 @@ mod tests {
 
         assert_eq!(result.batch_id, "batch-123");
         assert_eq!(result.upload_url, "https://mineru.example.com/upload-target.pdf");
+    }
+
+    #[test]
+    fn supports_extension_excludes_images() {
+        assert!(MineruService::supports_extension("pdf"));
+        assert!(MineruService::supports_extension("docx"));
+        assert!(!MineruService::supports_extension("jpg"));
+        assert!(!MineruService::supports_extension("jpeg"));
+        assert!(!MineruService::supports_extension("png"));
     }
 }
