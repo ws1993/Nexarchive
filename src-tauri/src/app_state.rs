@@ -2,15 +2,17 @@ use std::{
     fs,
     io::Read,
     path::{Path, PathBuf},
-    sync::{Arc, RwLock},
+    sync::{
+        atomic::{AtomicU16, Ordering},
+        Arc, RwLock,
+    },
 };
 
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, FixedOffset, Utc};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
-use uuid::Uuid;
 use walkdir::WalkDir;
 
 use crate::{
@@ -49,6 +51,8 @@ enum ProcessOutcome {
     Skipped,
     Failed,
 }
+
+static ID_SEQUENCE: AtomicU16 = AtomicU16::new(0);
 
 impl AppState {
     pub fn new() -> Result<Arc<Self>> {
@@ -114,12 +118,12 @@ impl AppState {
         }
 
         self.logger.info(
-      "init",
-      "system structure initialized",
-      None,
-      None,
-      Some(json!({"inbox": inbox.display().to_string(), "archive_root": archive.display().to_string()})),
-    );
+            "初始化",
+            "目录结构初始化完成",
+            None,
+            None,
+            Some(json!({"inbox": inbox.display().to_string(), "archive_root": archive.display().to_string()})),
+        );
 
         Ok(true)
     }
@@ -142,7 +146,7 @@ impl AppState {
             .await;
 
         self.logger
-            .info("settings", "settings saved", None, None, None);
+            .info("设置", "设置已保存", None, None, None);
 
         Ok(true)
     }
@@ -159,7 +163,7 @@ impl AppState {
         let config = self.current_config();
         self.llm.test_connection(&config).await?;
         self.logger
-            .info("llm", "connection test success", None, None, None);
+            .info("模型", "连通性测试成功", None, None, None);
         Ok(true)
     }
 
@@ -167,7 +171,7 @@ impl AppState {
         let config = self.current_config();
         self.mineru.test_connection(&config).await?;
         self.logger
-            .info("mineru", "connection test success", None, None, None);
+            .info("MinerU", "连通性测试成功", None, None, None);
         Ok(true)
     }
 
@@ -214,8 +218,8 @@ impl AppState {
         move_file(&source, &target)?;
 
         self.logger.info(
-            "recycle",
-            "file restored from recycle",
+            "回收区",
+            "文件已从回收区恢复",
             Some(&task.job_id),
             Some(&task.task_id),
             Some(json!({"target": target.display().to_string()})),
@@ -232,20 +236,20 @@ impl AppState {
             anyhow::bail!("inbox_path and archive_root_path must be configured");
         }
 
-        let job_id = Uuid::new_v4().to_string();
+        let job_id = next_time_id();
         let job = JobRecord {
             job_id: job_id.clone(),
             trigger_type: trigger.as_str().to_string(),
-            start_at: Utc::now().to_rfc3339(),
+            start_at: beijing_now_rfc3339(),
             end_at: None,
             status: "running".to_string(),
-            summary: "running".to_string(),
+            summary: "执行中".to_string(),
         };
 
         self.db.insert_job(&job)?;
         self.logger.info(
-            "job",
-            "job started",
+            "任务",
+            "任务开始执行",
             Some(&job_id),
             None,
             Some(json!({"trigger": trigger.as_str()})),
@@ -296,26 +300,25 @@ impl AppState {
                 Err(err) => {
                     failed += 1;
                     self.logger.error(
-            "pipeline",
-            "unexpected processing error",
-            Some(&job_id),
-            None,
-            Some(json!({"file": file_path.display().to_string(), "error": err.to_string()})),
-          );
+                        "流程",
+                        "处理流程出现未预期错误",
+                        Some(&job_id),
+                        None,
+                        Some(json!({"file": file_path.display().to_string(), "error": err.to_string()})),
+                    );
                 }
             }
         }
 
         let status = if failed > 0 { "partial" } else { "success" };
-        let summary =
-            format!("success={success}, review={review}, skipped={skipped}, failed={failed}");
+        let summary = format!("成功={success}，待复核={review}，已跳过={skipped}，失败={failed}");
 
         self.db.finish_job(&job_id, status, &summary)?;
         let _ = self.logger.cleanup_db_logs();
 
         self.logger.info(
-            "job",
-            "job finished",
+            "任务",
+            "任务执行完成",
             Some(&job_id),
             None,
             Some(json!({"status": status, "summary": summary})),
@@ -330,7 +333,7 @@ impl AppState {
         file_path: &Path,
         config: &AppConfig,
     ) -> Result<ProcessOutcome> {
-        let task_id = Uuid::new_v4().to_string();
+        let task_id = next_time_id();
         let fingerprint = build_fingerprint(file_path)?;
 
         let mut task = FileTaskRecord {
@@ -358,8 +361,8 @@ impl AppState {
             self.db.update_file_task(&task)?;
 
             self.logger.info(
-                "dedupe",
-                "duplicate file skipped",
+                "去重",
+                "检测到重复文件，已跳过",
                 Some(job_id),
                 Some(&task_id),
                 Some(json!({"file": file_path.display().to_string()})),
@@ -383,7 +386,7 @@ impl AppState {
                     config,
                     "extract_failed",
                     &err.to_string(),
-                    "extract",
+                    "提取",
                 );
             }
         };
@@ -427,7 +430,7 @@ impl AppState {
                     config,
                     "classify_failed",
                     &err.to_string(),
-                    "classify",
+                    "分类",
                 );
             }
         };
@@ -455,8 +458,8 @@ impl AppState {
             self.db.update_file_task(&task)?;
 
             self.logger.warn(
-                "classify",
-                "low confidence moved to review",
+                "分类",
+                "置信度较低，已移入复核目录",
                 Some(job_id),
                 Some(&task.task_id),
                 Some(json!({"confidence": classification.confidence})),
@@ -528,8 +531,8 @@ impl AppState {
             }
             Err(err) => {
                 self.logger.warn(
-                    "recycle",
-                    "source move to recycle failed; kept original",
+                    "回收区",
+                    "移动到回收区失败，已保留原文件",
                     Some(job_id),
                     Some(&task.task_id),
                     Some(json!({"error": err.to_string()})),
@@ -543,8 +546,8 @@ impl AppState {
         self.db.update_file_task(&task)?;
 
         self.logger.info(
-            "archive",
-            "file archived",
+            "归档",
+            "文件归档完成",
             Some(job_id),
             Some(&task.task_id),
             Some(json!({
@@ -574,8 +577,8 @@ impl AppState {
             match self.mineru.extract(config, file_path).await {
                 Ok(extracted) if !extracted.text.trim().is_empty() => {
                     self.logger.info(
-                        "extract",
-                        "mineru extract success",
+                        "提取",
+                        "MinerU 提取成功",
                         Some(job_id),
                         Some(task_id),
                         Some(json!({"file": file_path.display().to_string()})),
@@ -584,8 +587,8 @@ impl AppState {
                 }
                 Ok(_) => {
                     self.logger.warn(
-                        "extract",
-                        "mineru returned empty text; fallback to local extractor",
+                        "提取",
+                        "MinerU 返回空文本，已回退本地解析",
                         Some(job_id),
                         Some(task_id),
                         Some(json!({"file": file_path.display().to_string()})),
@@ -593,8 +596,8 @@ impl AppState {
                 }
                 Err(err) => {
                     self.logger.warn(
-                        "extract",
-                        "mineru extract failed; fallback to local extractor",
+                        "提取",
+                        "MinerU 提取失败，已回退本地解析",
                         Some(job_id),
                         Some(task_id),
                         Some(json!({"file": file_path.display().to_string(), "error": err.to_string()})),
@@ -660,6 +663,26 @@ impl AppState {
             .map(|v| v.clone())
             .unwrap_or_else(|_| AppConfig::default())
     }
+}
+
+fn next_time_id() -> String {
+    let now = beijing_now();
+    let sequence = ID_SEQUENCE.fetch_add(1, Ordering::Relaxed) % 1000;
+    format!(
+        "{}{:03}{:03}",
+        now.format("%Y%j%H%M%S"),
+        now.timestamp_subsec_millis(),
+        sequence
+    )
+}
+
+fn beijing_now_rfc3339() -> String {
+    beijing_now().to_rfc3339()
+}
+
+fn beijing_now() -> DateTime<FixedOffset> {
+    let offset = FixedOffset::east_opt(8 * 60 * 60).expect("valid UTC+8 offset");
+    Utc::now().with_timezone(&offset)
 }
 
 fn resolve_app_data_dir() -> Result<PathBuf> {

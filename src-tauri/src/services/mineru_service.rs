@@ -138,8 +138,6 @@ impl MineruService {
           "layout_model": "doclayout_yolo",
           "backend": "pipeline",
           "parse_mode": "auto",
-          "url": "",
-          "model_version": m.model_version,
           "files": [{
             "name": file_name,
             "is_ocr": is_ocr,

@@ -28,7 +28,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 const { Header, Sider, Content } = Layout;
 
 const menuItems = [
-  { key: "dashboard", label: "Dashboard", icon: <DashboardOutlined /> },
+  { key: "dashboard", label: "总览", icon: <DashboardOutlined /> },
   { key: "init", label: "初始化", icon: <FolderOpenOutlined /> },
   { key: "jobs", label: "任务日志", icon: <FileSearchOutlined /> },
   { key: "rules", label: "规则预览", icon: <PlayCircleOutlined /> },
@@ -68,7 +68,7 @@ function App() {
   };
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
+    <Layout style={{ height: "100vh", overflow: "hidden" }}>
       <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed} width={210}>
         <div
           style={{
@@ -90,7 +90,7 @@ function App() {
           onClick={(e) => setActiveKey(e.key)}
         />
       </Sider>
-      <Layout>
+      <Layout style={{ overflow: "auto" }}>
         <Header style={{ background: "transparent", padding: "12px 16px", height: "auto" }}>
           <Card>
             <Row justify="space-between" align="middle" gutter={[12, 12]}>
