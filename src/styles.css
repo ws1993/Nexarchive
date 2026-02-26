@@ -68,6 +68,55 @@ body {
   gap: 16px;
 }
 
+.path-flow-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.path-flow-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.path-flow-title {
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.path-flow-copy-btn {
+  flex-shrink: 0;
+  padding: 0;
+  height: 20px;
+}
+
+.path-flow-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.path-flow-label {
+  color: var(--muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.path-flow-value {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (min-width: 1024px) {
   .split {
     grid-template-columns: 1fr 1fr;

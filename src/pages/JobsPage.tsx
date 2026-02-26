@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { App as AntApp, Button, Card, Input, Space, Table, Tag, Typography } from "antd";
+import { App as AntApp, Button, Card, Input, Popconfirm, Space, Table, Tag, Tooltip, Typography } from "antd";
 import { api } from "../api";
 import { useAppStore } from "../store";
 import type { FileTaskRecord, JobRecord, LogEvent } from "../types";
@@ -23,13 +23,15 @@ const statusTextMap: Record<string, string> = {
   pending: "待处理",
   skipped: "已跳过",
   review: "待复核",
+  undone: "已撤销",
   执行中: "执行中",
   成功: "成功",
   部分失败: "部分失败",
   失败: "失败",
   待处理: "待处理",
   已跳过: "已跳过",
-  待复核: "待复核"
+  待复核: "待复核",
+  已撤销: "已撤销"
 };
 
 const triggerTextMap: Record<string, string> = {
@@ -98,6 +100,17 @@ const toChineseLevel = (value: string) => levelTextMap[value] ?? value;
 const toChineseStage = (value: string) => stageTextMap[value] ?? value;
 const toChineseMessage = (value: string) => logMessageMap[value] ?? value;
 
+type PathFlow = {
+  from?: string;
+  to?: string;
+};
+
+type ParsedPath = {
+  fullPath?: string;
+  fileName: string;
+  dir: string;
+};
+
 const toChineseSummary = (value: string) =>
   value
     .replace(/running/g, "执行中")
@@ -106,8 +119,99 @@ const toChineseSummary = (value: string) =>
     .replace(/skipped=/g, "已跳过=")
     .replace(/failed=/g, "失败=");
 
+const pickString = (value: unknown): string | undefined => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const text = value.trim();
+  return text.length > 0 ? text : undefined;
+};
+
+const safeParsePayload = (payloadJson?: string): Record<string, unknown> | null => {
+  if (!payloadJson) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(payloadJson);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+};
+
+const splitPath = (path?: string): ParsedPath => {
+  const raw = path?.trim();
+  if (!raw) {
+    return { fileName: "-", dir: "-" };
+  }
+
+  const normalized = raw.replace(/\\/g, "/");
+  const idx = normalized.lastIndexOf("/");
+  if (idx < 0) {
+    return {
+      fullPath: raw,
+      fileName: normalized || "-",
+      dir: "."
+    };
+  }
+
+  const fileName = normalized.slice(idx + 1) || normalized;
+  const dir = normalized.slice(0, idx) || "/";
+  return {
+    fullPath: raw,
+    fileName,
+    dir
+  };
+};
+
+const buildTaskFlow = (row: FileTaskRecord): PathFlow => ({
+  from: row.src_path,
+  to: row.final_path
+});
+
+const buildLogFlow = (row: LogEvent): PathFlow | null => {
+  const payload = safeParsePayload(row.payload_json);
+  if (!payload) {
+    return null;
+  }
+
+  const source = pickString(payload.source);
+  const target = pickString(payload.target);
+  if (source && target) {
+    return { from: source, to: target };
+  }
+
+  const archivedPath = pickString(payload.archived_path);
+  const restoredPath = pickString(payload.restored_path);
+  if (archivedPath && restoredPath) {
+    return { from: archivedPath, to: restoredPath };
+  }
+
+  const requestedDir = pickString(payload.requested_dir);
+  const fallbackDir = pickString(payload.fallback_dir);
+  if (requestedDir && fallbackDir) {
+    return { from: requestedDir, to: fallbackDir };
+  }
+
+  if (target) {
+    return { to: target };
+  }
+
+  const file = pickString(payload.file);
+  if (file) {
+    return { from: file };
+  }
+
+  return null;
+};
+
 const isRunningStatus = (value?: string) => value === "running" || value === "执行中";
 const isFailedStatus = (value: string) => value === "failed" || value === "失败";
+const isSuccessStatus = (value: string) => value === "success" || value === "成功";
+const canUndoArchive = (row: FileTaskRecord) => isSuccessStatus(row.archive_status) && Boolean(row.recycle_path);
 
 const statusColor = (value: string) => {
   if (value === "success" || value === "成功") return "green";
@@ -115,6 +219,7 @@ const statusColor = (value: string) => {
   if (value === "failed" || value === "失败") return "red";
   if (value === "running" || value === "执行中") return "blue";
   if (value === "review" || value === "待复核") return "gold";
+  if (value === "undone" || value === "已撤销") return "cyan";
   if (value === "skipped" || value === "已跳过") return "default";
   return "default";
 };
@@ -223,6 +328,66 @@ export function JobsPage() {
     }
   };
 
+  const onUndoArchive = async (taskId: string) => {
+    await api.undoArchiveTask(taskId);
+    message.success("已撤销归档并恢复原文件");
+    if (selectedJob) {
+      void refreshJobDetails(selectedJob, logQuery);
+    }
+  };
+
+  const copyFlowText = async (text: string) => {
+    if (!navigator.clipboard?.writeText) {
+      message.warning("当前环境不支持剪贴板复制");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(text);
+      message.success("已复制完整流转路径");
+    } catch {
+      message.error("复制失败");
+    }
+  };
+
+  const renderFlowCell = (flow: PathFlow | null) => {
+    if (!flow?.from && !flow?.to) {
+      return <Typography.Text type="secondary">-</Typography.Text>;
+    }
+
+    const fromPath = splitPath(flow.from);
+    const toPath = splitPath(flow.to);
+    const flowTitle = flow.from && flow.to ? `${fromPath.fileName} → ${toPath.fileName}` : flow.to ? toPath.fileName : fromPath.fileName;
+    const copyText = `FROM: ${flow.from ?? "-"}\nTO: ${flow.to ?? "-"}`;
+
+    return (
+      <div className="path-flow-cell">
+        <div className="path-flow-top">
+          <Tooltip title={flow.from && flow.to ? `${flow.from}\n→\n${flow.to}` : flow.from ?? flow.to ?? "-"}>
+            <span className="path-flow-title">{flowTitle}</span>
+          </Tooltip>
+          <Button size="small" type="link" className="path-flow-copy-btn" onClick={() => void copyFlowText(copyText)}>
+            复制
+          </Button>
+        </div>
+
+        <Tooltip title={flow.from ?? "-"}>
+          <div className="path-flow-line">
+            <span className="path-flow-label">FROM:</span>
+            <span className="path-flow-value">{flow.from ? fromPath.dir : "-"}</span>
+          </div>
+        </Tooltip>
+
+        <Tooltip title={flow.to ?? "-"}>
+          <div className="path-flow-line">
+            <span className="path-flow-label">TO:</span>
+            <span className="path-flow-value">{flow.to ? toPath.dir : "-"}</span>
+          </div>
+        </Tooltip>
+      </div>
+    );
+  };
+
   return (
     <Space direction="vertical" style={{ width: "100%" }} size={16}>
       <Card
@@ -270,7 +435,11 @@ export function JobsPage() {
           dataSource={tasks}
           pagination={{ pageSize: 8 }}
           columns={[
-            { title: "文件", dataIndex: "src_path", ellipsis: true },
+            {
+              title: "文件流转",
+              width: 460,
+              render: (_: unknown, row: FileTaskRecord) => renderFlowCell(buildTaskFlow(row))
+            },
             {
               title: "提取",
               dataIndex: "extract_status",
@@ -289,18 +458,30 @@ export function JobsPage() {
               width: 90,
               render: (value: string) => <Tag color={statusColor(value)}>{toChineseStatus(value)}</Tag>
             },
-            { title: "目标路径", dataIndex: "final_path", ellipsis: true },
             {
-              title: "恢复",
-              width: 90,
+              title: "操作",
+              width: 180,
               render: (_: unknown, row: FileTaskRecord) => (
-                <Button
-                  size="small"
-                  disabled={!row.recycle_path}
-                  onClick={() => void onRestore(row.task_id)}
-                >
-                  恢复
-                </Button>
+                <Space size={8}>
+                  <Button
+                    size="small"
+                    disabled={!row.recycle_path}
+                    onClick={() => void onRestore(row.task_id)}
+                  >
+                    恢复
+                  </Button>
+                  <Popconfirm
+                    title="撤销归档"
+                    description="将删除归档文件并恢复原文件，是否继续？"
+                    okText="确认撤销"
+                    cancelText="取消"
+                    onConfirm={() => onUndoArchive(row.task_id)}
+                  >
+                    <Button size="small" danger disabled={!canUndoArchive(row)}>
+                      撤销归档
+                    </Button>
+                  </Popconfirm>
+                </Space>
               )
             }
           ]}
@@ -343,6 +524,11 @@ export function JobsPage() {
                   {toChineseLevel(value)}
                 </Tag>
               )
+            },
+            {
+              title: "文件流转",
+              width: 460,
+              render: (_: unknown, row: LogEvent) => renderFlowCell(buildLogFlow(row))
             },
             { title: "阶段", dataIndex: "stage", width: 110, render: (value: string) => toChineseStage(value) },
             { title: "消息", dataIndex: "message", render: (value: string) => toChineseMessage(value) }

@@ -99,6 +99,11 @@ fn restore_from_recycle_bin(
         .map_err(err_to_string)
 }
 
+#[tauri::command]
+fn undo_archive_task(state: State<'_, Arc<AppState>>, task_id: String) -> Result<bool, String> {
+    state.undo_archive_task(task_id).map_err(err_to_string)
+}
+
 fn err_to_string(err: impl std::fmt::Display) -> String {
     err.to_string()
 }
@@ -178,6 +183,7 @@ pub fn run() {
             get_file_tasks,
             get_logs,
             restore_from_recycle_bin,
+            undo_archive_task,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

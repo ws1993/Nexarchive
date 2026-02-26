@@ -47,5 +47,8 @@ export const api = {
   getLogs: (filters: LogFilters) => invoke<PagedResult<LogEvent>>("get_logs", { filters }),
 
   restoreFromRecycleBin: (taskId: string) =>
-    invoke<boolean>("restore_from_recycle_bin", { taskId })
+    invoke<boolean>("restore_from_recycle_bin", { taskId }),
+
+  undoArchiveTask: (taskId: string) =>
+    invoke<boolean>("undo_archive_task", { taskId })
 };

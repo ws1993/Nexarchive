@@ -228,6 +228,65 @@ impl AppState {
         Ok(true)
     }
 
+    pub fn undo_archive_task(&self, task_id: String) -> Result<bool> {
+        let mut task = self
+            .db
+            .get_file_task_by_id(&task_id)?
+            .context("task not found")?;
+
+        if task.archive_status != "success" && task.archive_status != "成功" {
+            anyhow::bail!("only success archived task can be undone");
+        }
+
+        let recycle_path_text = task
+            .recycle_path
+            .clone()
+            .context("task has no recycle path")?;
+        let final_path_text = task.final_path.clone().context("task has no final path")?;
+
+        let recycle_source = PathBuf::from(&recycle_path_text);
+        if !recycle_source.exists() {
+            anyhow::bail!("recycle source does not exist");
+        }
+
+        let archived_path = PathBuf::from(&final_path_text);
+        let archived_file_missing = !archived_path.exists();
+        if !archived_file_missing {
+            fs::remove_file(&archived_path).with_context(|| {
+                format!(
+                    "remove archived file failed: {}",
+                    archived_path.display()
+                )
+            })?;
+        }
+
+        let restored_target = unique_path(&PathBuf::from(&task.src_path));
+        ensure_parent(&restored_target)?;
+        move_file(&recycle_source, &restored_target)?;
+
+        task.rename_status = "undone".to_string();
+        task.archive_status = "undone".to_string();
+        task.final_path = Some(restored_target.display().to_string());
+        task.recycle_path = None;
+        task.error_code = None;
+        task.error_message = None;
+        self.db.update_file_task(&task)?;
+
+        self.logger.info(
+            "回收区",
+            "归档已撤销并恢复原文件",
+            Some(&task.job_id),
+            Some(&task.task_id),
+            Some(json!({
+                "archived_path": final_path_text,
+                "restored_path": restored_target.display().to_string(),
+                "archived_file_missing": archived_file_missing
+            })),
+        );
+
+        Ok(true)
+    }
+
     pub async fn run_job(self: &Arc<Self>, trigger: TriggerType) -> Result<String> {
         let _job_guard = self.run_guard.lock().await;
 
@@ -520,10 +579,27 @@ impl AppState {
         let subpath = sanitize_relative_subpath(&classification.target_subpath)
             .context("invalid target subpath")?;
 
-        let final_dir = PathBuf::from(&config.archive_root_path)
-            .join(top_dir)
-            .join(subpath);
-        fs::create_dir_all(&final_dir)?;
+        let top_root = PathBuf::from(&config.archive_root_path).join(top_dir);
+        let desired_dir = top_root.join(&subpath);
+        let final_dir = deepest_existing_archive_dir(&top_root, &subpath).with_context(|| {
+            format!(
+                "archive top dir missing or invalid: {}",
+                top_root.display()
+            )
+        })?;
+
+        if final_dir != desired_dir {
+            self.logger.warn(
+                "归档",
+                "目标目录不存在，已回退到最近存在目录",
+                Some(job_id),
+                Some(&task.task_id),
+                Some(json!({
+                    "requested_dir": desired_dir.display().to_string(),
+                    "fallback_dir": final_dir.display().to_string()
+                })),
+            );
+        }
 
         let final_path = unique_path(&final_dir.join(final_name));
         fs::copy(file_path, &final_path)?;
@@ -746,6 +822,26 @@ fn file_best_date(path: &Path) -> DateTime<Utc> {
         }
     }
     now
+}
+
+fn deepest_existing_archive_dir(top_root: &Path, subpath: &Path) -> Option<PathBuf> {
+    if !top_root.is_dir() {
+        return None;
+    }
+
+    let mut current = top_root.to_path_buf();
+    let mut deepest = current.clone();
+
+    for seg in subpath.iter() {
+        current.push(seg);
+        if current.is_dir() {
+            deepest = current.clone();
+        } else {
+            break;
+        }
+    }
+
+    Some(deepest)
 }
 
 fn move_file(source: &Path, target: &Path) -> Result<()> {
