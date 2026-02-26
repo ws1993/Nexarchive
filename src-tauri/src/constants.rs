@@ -30,7 +30,8 @@ pub const CONTROLLED_VOCAB: &[&str] = &[
 pub const TOP_DIR_CODES: &[&str] = &["10", "20", "30", "40", "50", "99"];
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
-    "txt", "md", "pdf", "doc", "docx", "ppt", "pptx", "xlsx", "jpg", "jpeg", "png",
+    "txt", "md", "markdown", "html", "htm", "pdf", "doc", "docx", "ppt", "pptx", "xlsx", "jpg",
+    "jpeg", "png",
 ];
 
 pub fn top_dir_name(code: &str) -> Option<&'static str> {

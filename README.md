@@ -12,7 +12,7 @@ NexArchive is a Windows desktop app for local file auto-archiving.
 - LLM classification (OpenAI-compatible Chat Completions API).
 - File extraction pipeline for:
   - MinerU API (optional, primary): `pdf`, `doc`, `docx`, `ppt`, `pptx`, `jpg`, `jpeg`, `png`
-  - Built-in Rust fallback: `txt`, `md`, `pdf`, `docx`, `xlsx`, `pptx`, `jpg`, `jpeg`, `png`
+  - Built-in Rust fallback: `txt`, `md`, `markdown`, `html`, `htm`, `pdf`, `docx`, `xlsx`, `pptx`, `jpg`, `jpeg`, `png`
 - Rename template: `YYYYMMDD_文档类型_核心标题[#标签][@人物][&备注].扩展名`.
 - Controlled vocabulary + top-level folder constraints.
 - Archive top-level folders use Chinese names: `10_身份基石`, `20_责任领域`, `30_行动项目`, `40_知识金库`, `50_数字资产`, `99_历史档案`.
