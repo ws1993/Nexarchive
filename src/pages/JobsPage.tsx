@@ -3,6 +3,25 @@ import { App as AntApp, Button, Card, Input, Space, Table, Tag, Typography } fro
 import { api } from "../api";
 import type { FileTaskRecord, JobRecord, LogEvent } from "../types";
 
+const beijingTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Shanghai",
+  hour12: false,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit"
+});
+
+const formatBeijingTime = (value: string) => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return beijingTimeFormatter.format(parsed).replace(/\//g, "-");
+};
+
 export function JobsPage() {
   const { message } = AntApp.useApp();
   const [jobs, setJobs] = useState<JobRecord[]>([]);
@@ -127,7 +146,12 @@ export function JobsPage() {
           dataSource={logs}
           pagination={{ pageSize: 10 }}
           columns={[
-            { title: "时间", dataIndex: "timestamp", width: 180 },
+            {
+              title: "时间(北京时间)",
+              dataIndex: "timestamp",
+              width: 190,
+              render: (value: string) => formatBeijingTime(value)
+            },
             {
               title: "级别",
               dataIndex: "level",

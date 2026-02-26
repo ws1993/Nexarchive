@@ -27,19 +27,6 @@ struct MineruResponse<T> {
 }
 
 #[derive(Debug, Deserialize)]
-struct BatchCreateData {
-    batch_id: String,
-    #[serde(default)]
-    file_urls: Vec<FileUploadUrl>,
-}
-
-#[derive(Debug, Deserialize)]
-struct FileUploadUrl {
-    name: String,
-    url: String,
-}
-
-#[derive(Debug, Deserialize)]
 struct BatchStatusData {
     state: String,
     #[serde(default)]
@@ -160,7 +147,7 @@ impl MineruService {
           }]
         });
 
-        let response: MineruResponse<BatchCreateData> = self
+        let raw = self
             .client
             .post(endpoint)
             .timeout(timeout)
@@ -171,29 +158,19 @@ impl MineruService {
             .context("mineru create batch request failed")?
             .error_for_status()
             .context("mineru create batch status is not success")?
-            .json()
+            .text()
             .await
-            .context("mineru create batch response parse failed")?;
+            .context("mineru create batch response read failed")?;
 
-        if response.code != 0 {
-            anyhow::bail!(
-                "mineru create batch failed: {}",
-                response.msg.unwrap_or_else(|| "unknown".to_string())
-            );
-        }
+        let response: Value = serde_json::from_str(&raw).with_context(|| {
+            format!(
+                "mineru create batch response parse failed, body preview: {}",
+                preview_text(&raw)
+            )
+        })?;
 
-        let data = response.data.context("mineru create batch missing data")?;
-        let mut file_urls = data.file_urls.into_iter();
-        let upload_url = file_urls
-            .find(|f| f.name == file_name)
-            .or_else(|| file_urls.next())
-            .map(|f| f.url)
-            .context("mineru create batch missing upload url")?;
-
-        Ok(CreateBatchResult {
-            batch_id: data.batch_id,
-            upload_url,
-        })
+        parse_create_batch_response(&response, file_name)
+            .with_context(|| format!("mineru create batch invalid payload: {}", preview_json(&response)))
     }
 
     async fn upload_file(&self, upload_url: &str, file_path: &Path, timeout: Duration) -> Result<()> {
@@ -452,4 +429,169 @@ fn limit_text(text: String) -> String {
         out = out.chars().take(12000).collect();
     }
     out
+}
+
+fn parse_create_batch_response(response: &Value, file_name: &str) -> Result<CreateBatchResult> {
+    if let Some(code) = first_i64(response, &["code", "status", "status_code"]) {
+        if code != 0 && code != 200 {
+            let msg =
+                first_string(response, &["msg", "message", "error", "error_msg"]).unwrap_or_else(|| {
+                    "unknown".to_string()
+                });
+            anyhow::bail!("mineru create batch failed: code={}, msg={}", code, msg);
+        }
+    }
+
+    if matches!(response.get("success").and_then(Value::as_bool), Some(false))
+        || matches!(response.get("ok").and_then(Value::as_bool), Some(false))
+    {
+        let msg = first_string(response, &["msg", "message", "error", "error_msg"])
+            .unwrap_or_else(|| "unknown".to_string());
+        anyhow::bail!("mineru create batch failed: {}", msg);
+    }
+
+    let data = response.get("data").filter(|v| !v.is_null()).unwrap_or(response);
+    let batch_id = first_string(data, &["batch_id", "batchId", "id"])
+        .or_else(|| first_string(response, &["batch_id", "batchId", "id"]))
+        .context("mineru create batch missing batch_id")?;
+
+    let upload_url = first_string(data, &["upload_url", "uploadUrl", "url", "put_url", "putUrl"])
+        .or_else(|| pick_upload_url(data, file_name))
+        .or_else(|| pick_upload_url(response, file_name))
+        .context("mineru create batch missing upload url")?;
+
+    Ok(CreateBatchResult {
+        batch_id,
+        upload_url,
+    })
+}
+
+fn pick_upload_url(value: &Value, file_name: &str) -> Option<String> {
+    for key in ["file_urls", "fileUrls", "files", "upload_urls", "uploadUrls"] {
+        if let Some(entries) = value.get(key).and_then(Value::as_array) {
+            let mut fallback = None;
+            for entry in entries {
+                if let Some(url) = value_to_string(entry) {
+                    if fallback.is_none() {
+                        fallback = Some(url);
+                    }
+                    continue;
+                }
+                let name = first_string(entry, &["name", "file_name", "fileName", "data_id", "dataId"]);
+                let url = first_string(entry, &["url", "upload_url", "uploadUrl", "put_url", "putUrl"]);
+                if let Some(url) = url {
+                    if name.as_deref() == Some(file_name) {
+                        return Some(url);
+                    }
+                    if fallback.is_none() {
+                        fallback = Some(url);
+                    }
+                }
+            }
+            if fallback.is_some() {
+                return fallback;
+            }
+        }
+    }
+    None
+}
+
+fn first_i64(value: &Value, keys: &[&str]) -> Option<i64> {
+    keys.iter()
+        .filter_map(|k| value.get(*k))
+        .find_map(value_to_i64)
+}
+
+fn first_string(value: &Value, keys: &[&str]) -> Option<String> {
+    keys.iter()
+        .filter_map(|k| value.get(*k))
+        .find_map(value_to_string)
+}
+
+fn value_to_i64(value: &Value) -> Option<i64> {
+    match value {
+        Value::Number(v) => v.as_i64(),
+        Value::String(v) => v.trim().parse::<i64>().ok(),
+        _ => None,
+    }
+}
+
+fn value_to_string(value: &Value) -> Option<String> {
+    match value {
+        Value::String(v) => {
+            let s = v.trim();
+            if s.is_empty() {
+                None
+            } else {
+                Some(s.to_string())
+            }
+        }
+        Value::Number(v) => Some(v.to_string()),
+        _ => None,
+    }
+}
+
+fn preview_text(text: &str) -> String {
+    preview(text)
+}
+
+fn preview_json(value: &Value) -> String {
+    preview(&value.to_string())
+}
+
+fn preview(content: &str) -> String {
+    const LIMIT: usize = 280;
+    if content.len() <= LIMIT {
+        content.replace('\n', " ")
+    } else {
+        format!("{}...", content[..LIMIT].replace('\n', " "))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_create_batch_response;
+    use serde_json::json;
+
+    #[test]
+    fn parse_create_batch_response_supports_string_file_urls() {
+        let response = json!({
+            "code": 0,
+            "data": {
+                "batch_id": "e7262b5a-4cc2-490d-9f00-3315df8aef91",
+                "file_urls": [
+                    "https://mineru.example.com/upload-a.pdf",
+                    "https://mineru.example.com/upload-b.pdf"
+                ]
+            }
+        });
+
+        let result = parse_create_batch_response(&response, "connectivity-check.pdf")
+            .expect("string[] file_urls should be accepted");
+
+        assert_eq!(result.batch_id, "e7262b5a-4cc2-490d-9f00-3315df8aef91");
+        assert_eq!(result.upload_url, "https://mineru.example.com/upload-a.pdf");
+    }
+
+    #[test]
+    fn parse_create_batch_response_supports_object_file_urls() {
+        let response = json!({
+            "code": 0,
+            "data": {
+                "batchId": "batch-123",
+                "fileUrls": [
+                    {
+                        "name": "connectivity-check.pdf",
+                        "url": "https://mineru.example.com/upload-target.pdf"
+                    }
+                ]
+            }
+        });
+
+        let result = parse_create_batch_response(&response, "connectivity-check.pdf")
+            .expect("object[] file_urls should be accepted");
+
+        assert_eq!(result.batch_id, "batch-123");
+        assert_eq!(result.upload_url, "https://mineru.example.com/upload-target.pdf");
+    }
 }

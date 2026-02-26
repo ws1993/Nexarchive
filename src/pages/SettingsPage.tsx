@@ -62,6 +62,8 @@ export function SettingsPage() {
       await api.saveSettings(nextConfig);
       await api.testLlmConnection();
       message.success("模型连通性测试成功");
+    } catch (e) {
+      message.error(`模型连通性测试失败：${e}`);
     } finally {
       setTestingLlm(false);
     }
@@ -78,6 +80,8 @@ export function SettingsPage() {
       await api.saveSettings(nextConfig);
       await api.testMineruConnection();
       message.success("MinerU 连通性测试成功");
+    } catch (e) {
+      message.error(`MinerU 连通性测试失败：${e}`);
     } finally {
       setTestingMineru(false);
     }

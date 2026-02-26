@@ -29,6 +29,7 @@ export function InitWizardPage() {
   const { message } = AntApp.useApp();
   const config = useAppStore((s) => s.config);
   const setConfig = useAppStore((s) => s.setConfig);
+  const refreshConfig = useAppStore((s) => s.refreshConfig);
 
   const [preview, setPreview] = useState<InitPreviewItem[]>([]);
   const [working, setWorking] = useState(false);
@@ -45,7 +46,10 @@ export function InitWizardPage() {
     setWorking(true);
     try {
       await api.initSystem(config.inbox_path, config.archive_root_path);
+      await refreshConfig();
       message.success("初始化完成");
+    } catch (e) {
+      message.error(`初始化失败：${e}`);
     } finally {
       setWorking(false);
     }

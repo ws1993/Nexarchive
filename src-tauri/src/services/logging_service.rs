@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::Result;
-use chrono::Utc;
+use chrono::{FixedOffset, Utc};
 
 use crate::{
     models::{LogEvent, RetentionConfig},
@@ -81,7 +81,7 @@ impl LoggingService {
         payload: Option<serde_json::Value>,
     ) -> Result<()> {
         let event = LogEvent {
-            timestamp: Utc::now().to_rfc3339(),
+            timestamp: beijing_now_rfc3339(),
             level: level.to_string(),
             job_id: job_id.map(|s| s.to_string()),
             task_id: task_id.map(|s| s.to_string()),
@@ -163,4 +163,10 @@ impl LoggingService {
 
         Ok(())
     }
+}
+
+fn beijing_now_rfc3339() -> String {
+    // Force log timestamps to China Standard Time (UTC+8), regardless of host timezone.
+    let offset = FixedOffset::east_opt(8 * 60 * 60).expect("valid UTC+8 offset");
+    Utc::now().with_timezone(&offset).to_rfc3339()
 }

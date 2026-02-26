@@ -12,8 +12,8 @@ import type {
 export const api = {
   initSystem: (inboxPath: string, archiveRootPath: string) =>
     invoke<boolean>("init_system", {
-      inbox_path: inboxPath,
-      archive_root_path: archiveRootPath
+      inboxPath,
+      archiveRootPath
     }),
 
   getInitPreview: () => invoke<InitPreviewItem[]>("get_init_preview"),
@@ -36,16 +36,16 @@ export const api = {
   ) =>
     invoke<PagedResult<JobRecord>>("get_jobs", {
       page,
-      page_size: pageSize,
+      pageSize,
       status,
-      date_range: dateRange
+      dateRange
     }),
 
   getFileTasks: (jobId: string, status?: string) =>
-    invoke<FileTaskRecord[]>("get_file_tasks", { job_id: jobId, status }),
+    invoke<FileTaskRecord[]>("get_file_tasks", { jobId, status }),
 
   getLogs: (filters: LogFilters) => invoke<PagedResult<LogEvent>>("get_logs", { filters }),
 
   restoreFromRecycleBin: (taskId: string) =>
-    invoke<boolean>("restore_from_recycle_bin", { task_id: taskId })
+    invoke<boolean>("restore_from_recycle_bin", { taskId })
 };

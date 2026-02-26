@@ -115,9 +115,14 @@ pub fn run() {
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, Option::<&str>::None)?;
             let tray_menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
-            let _tray = TrayIconBuilder::new()
-                .menu(&tray_menu)
-                .show_menu_on_left_click(false)
+            let _tray = {
+                let mut builder = TrayIconBuilder::new()
+                    .menu(&tray_menu)
+                    .show_menu_on_left_click(false);
+                if let Some(icon) = app.default_window_icon() {
+                    builder = builder.icon(icon.clone());
+                }
+                builder
                 .on_menu_event(|app_handle, event| match event.id.as_ref() {
                     "show" => {
                         if let Some(window) = app_handle.get_webview_window("main") {
@@ -143,7 +148,8 @@ pub fn run() {
                         }
                     }
                 })
-                .build(app)?;
+                .build(app)?
+            };
 
             tauri::async_runtime::spawn(async move {
                 boot_state.bootstrap_scheduler().await;
