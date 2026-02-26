@@ -176,16 +176,27 @@ impl MineruService {
             .await
             .with_context(|| format!("read file failed: {}", file_path.display()))?;
 
-        self.client
+        let response = self
+            .client
             .put(upload_url)
             .timeout(timeout)
-            .header("Content-Type", "application/octet-stream")
             .body(bytes)
             .send()
             .await
-            .context("mineru upload request failed")?
-            .error_for_status()
-            .context("mineru upload status is not success")?;
+            .context("mineru upload request failed")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| String::from("<failed to read body>"));
+            anyhow::bail!(
+                "mineru upload status is not success: status={}, body={}",
+                status,
+                preview_text(&body)
+            );
+        }
 
         Ok(())
     }
