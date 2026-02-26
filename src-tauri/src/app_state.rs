@@ -580,26 +580,13 @@ impl AppState {
             .context("invalid target subpath")?;
 
         let top_root = PathBuf::from(&config.archive_root_path).join(top_dir);
-        let desired_dir = top_root.join(&subpath);
-        let final_dir = deepest_existing_archive_dir(&top_root, &subpath).with_context(|| {
+        let final_dir = top_root.join(&subpath);
+        fs::create_dir_all(&final_dir).with_context(|| {
             format!(
-                "archive top dir missing or invalid: {}",
-                top_root.display()
+                "create archive target directory failed: {}",
+                final_dir.display()
             )
         })?;
-
-        if final_dir != desired_dir {
-            self.logger.warn(
-                "归档",
-                "目标目录不存在，已回退到最近存在目录",
-                Some(job_id),
-                Some(&task.task_id),
-                Some(json!({
-                    "requested_dir": desired_dir.display().to_string(),
-                    "fallback_dir": final_dir.display().to_string()
-                })),
-            );
-        }
 
         let final_path = unique_path(&final_dir.join(final_name));
         fs::copy(file_path, &final_path)?;
@@ -822,26 +809,6 @@ fn file_best_date(path: &Path) -> DateTime<Utc> {
         }
     }
     now
-}
-
-fn deepest_existing_archive_dir(top_root: &Path, subpath: &Path) -> Option<PathBuf> {
-    if !top_root.is_dir() {
-        return None;
-    }
-
-    let mut current = top_root.to_path_buf();
-    let mut deepest = current.clone();
-
-    for seg in subpath.iter() {
-        current.push(seg);
-        if current.is_dir() {
-            deepest = current.clone();
-        } else {
-            break;
-        }
-    }
-
-    Some(deepest)
 }
 
 fn move_file(source: &Path, target: &Path) -> Result<()> {

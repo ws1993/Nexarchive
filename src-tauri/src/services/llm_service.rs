@@ -148,6 +148,7 @@ fn chat_endpoint(base_uri: &str) -> String {
 
 fn system_prompt() -> String {
     let vocab = CONTROLLED_VOCAB.join("、");
+    let subpath_options = target_subpath_options_prompt();
     format!(
         r#"You are a strict file classification engine for a personal knowledge management system.
 
@@ -162,12 +163,15 @@ fn system_prompt() -> String {
 ## Rules
 1. doc_type MUST be one of: [{vocab}]
 2. target_top_dir MUST be one of: [10, 20, 30, 40, 50, 99]
-3. target_subpath: relative path using "/" separators, no "..", no drive letters, max 2 levels deep, use Chinese folder names matching the directory structure, MUST map to an existing folder, and MUST NOT invent new folders (if uncertain, use empty string)
+3. target_subpath: relative path using "/" separators, no "..", no drive letters. For top_dir 10/20/30/40/50, choose exactly ONE folder from the allowed second-level options below and use the exact folder name with numeric prefix (for example "11_法律证件", not "法律证件"). Do not invent folders. For 99, prefer empty string unless an existing subfolder is clearly needed.
 4. core_title: concise Chinese title, 4–16 characters, no punctuation, no date prefix, no doc_type prefix
 5. tags: 0–3 short keywords relevant to the content
 6. people: names of people mentioned (empty if none)
 7. note: one-sentence remark only if truly necessary, otherwise null
 8. confidence: float 0.0–1.0 reflecting classification certainty
+
+### Allowed target_subpath by target_top_dir
+{subpath_options}
 
 Return ONLY a JSON object, no markdown, no explanation.
 All keys are required: doc_type, core_title, tags, people, note, target_top_dir, target_subpath, confidence."#
@@ -304,6 +308,7 @@ fn classification_key_score(value: &Value) -> usize {
 fn parse_classification_payload(payload: &str, file_name: &str) -> Result<LlmClassification> {
     if let Ok(mut result) = serde_json::from_str::<LlmClassification>(payload) {
         normalize_classification(&mut result);
+        normalize_archive_target(&mut result);
         return Ok(result);
     }
 
@@ -333,12 +338,7 @@ fn parse_classification_payload(payload: &str, file_name: &str) -> Result<LlmCla
     if !CONTROLLED_VOCAB.contains(&result.doc_type.as_str()) {
         result.doc_type = "素材".to_string();
     }
-    if !TOP_DIR_CODES.contains(&result.target_top_dir.as_str()) {
-        result.target_top_dir = "50".to_string();
-    }
-    if sanitize_relative_subpath(&result.target_subpath).is_none() {
-        result.target_subpath.clear();
-    }
+    normalize_archive_target(&mut result);
     if !(0.0..=1.0).contains(&result.confidence) {
         result.confidence = 0.0;
     }
@@ -372,6 +372,97 @@ fn normalize_classification(result: &mut LlmClassification) {
     if result.core_title.is_empty() {
         result.core_title = "图片待复核".to_string();
     }
+}
+
+fn normalize_archive_target(result: &mut LlmClassification) {
+    if !TOP_DIR_CODES.contains(&result.target_top_dir.as_str()) {
+        result.target_top_dir = "50".to_string();
+    }
+    result.target_subpath =
+        canonicalize_target_subpath(&result.target_top_dir, &result.target_subpath);
+}
+
+fn canonicalize_target_subpath(top_code: &str, raw_subpath: &str) -> String {
+    let allowed = second_level_subpaths(top_code);
+    if allowed.is_empty() {
+        return sanitize_relative_subpath(raw_subpath)
+            .map(|v| v.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+    }
+
+    let matched = sanitize_relative_subpath(raw_subpath)
+        .and_then(|path| {
+            path.iter()
+                .next()
+                .and_then(|seg| match_second_level_subpath(top_code, &seg.to_string_lossy()))
+        })
+        .or_else(|| default_second_level_subpath(top_code));
+
+    matched.unwrap_or_default().to_string()
+}
+
+fn match_second_level_subpath(top_code: &str, segment: &str) -> Option<&'static str> {
+    let normalized = segment.trim();
+    if normalized.is_empty() {
+        return None;
+    }
+
+    for option in second_level_subpaths(top_code) {
+        let option = *option;
+        if normalized == option {
+            return Some(option);
+        }
+
+        let (code, label) = split_code_and_label(option);
+        if normalized == code || normalized == label {
+            return Some(option);
+        }
+    }
+
+    None
+}
+
+fn split_code_and_label(value: &str) -> (&str, &str) {
+    if let Some((code, label)) = value.split_once('_') {
+        (code.trim(), label.trim())
+    } else {
+        ("", value.trim())
+    }
+}
+
+fn second_level_subpaths(top_code: &str) -> &'static [&'static str] {
+    match top_code {
+        "10" => &[
+            "11_法律证件",
+            "12_教育背景",
+            "13_职业履历",
+            "14_健康档案",
+            "15_财务信用",
+            "16_社会关系",
+        ],
+        "20" => &["21_财务管理", "22_健康管理", "23_居住管理", "24_职业发展"],
+        "30" => &["31_工作项目", "32_个人项目"],
+        "40" => &["41_知识库", "42_资料库", "43_模板"],
+        "50" => &["51_媒体素材", "52_创作产出", "53_软件资源"],
+        _ => &[],
+    }
+}
+
+fn default_second_level_subpath(top_code: &str) -> Option<&'static str> {
+    second_level_subpaths(top_code).first().copied()
+}
+
+fn target_subpath_options_prompt() -> String {
+    let mut lines = Vec::new();
+    for code in ["10", "20", "30", "40", "50", "99"] {
+        let options = second_level_subpaths(code);
+        if options.is_empty() {
+            lines.push(format!("- {code}: \"\""));
+        } else {
+            lines.push(format!("- {code}: {}", options.join(" | ")));
+        }
+    }
+    lines.join("\n")
 }
 
 fn read_string(value: Option<&Value>) -> Option<String> {
@@ -515,7 +606,15 @@ mod tests {
         let parsed = parse_classification_payload(payload, "receipt.jpg").expect("should parse");
         assert_eq!(parsed.doc_type, "素材");
         assert_eq!(parsed.target_top_dir, "50");
+        assert_eq!(parsed.target_subpath, "51_媒体素材");
         assert_eq!(parsed.tags, vec!["报销".to_string(), "票据".to_string()]);
         assert!((parsed.confidence - 0.35).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_parse_classification_payload_maps_plain_second_level_name() {
+        let payload = "{\"doc_type\":\"证件\",\"core_title\":\"护照扫描件\",\"target_top_dir\":\"10\",\"target_subpath\":\"法律证件\",\"confidence\":0.92,\"tags\":[],\"people\":[],\"note\":null}";
+        let parsed = parse_classification_payload(payload, "passport.pdf").expect("should parse");
+        assert_eq!(parsed.target_subpath, "11_法律证件");
     }
 }

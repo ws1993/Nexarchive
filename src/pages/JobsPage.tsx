@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { App as AntApp, Button, Card, Input, Popconfirm, Space, Table, Tag, Tooltip, Typography } from "antd";
+import { App as AntApp, Button, Card, Grid, Input, List, Popconfirm, Space, Table, Tag, Tooltip, Typography } from "antd";
 import { api } from "../api";
 import { useAppStore } from "../store";
 import type { FileTaskRecord, JobRecord, LogEvent } from "../types";
@@ -105,6 +105,11 @@ type PathFlow = {
   to?: string;
 };
 
+type FlowRenderOptions = {
+  compact?: boolean;
+  table?: boolean;
+};
+
 type ParsedPath = {
   fullPath?: string;
   fileName: string;
@@ -118,29 +123,6 @@ const toChineseSummary = (value: string) =>
     .replace(/review=/g, "待复核=")
     .replace(/skipped=/g, "已跳过=")
     .replace(/failed=/g, "失败=");
-
-const pickString = (value: unknown): string | undefined => {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-  const text = value.trim();
-  return text.length > 0 ? text : undefined;
-};
-
-const safeParsePayload = (payloadJson?: string): Record<string, unknown> | null => {
-  if (!payloadJson) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(payloadJson);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return null;
-    }
-    return parsed as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-};
 
 const splitPath = (path?: string): ParsedPath => {
   const raw = path?.trim();
@@ -172,42 +154,6 @@ const buildTaskFlow = (row: FileTaskRecord): PathFlow => ({
   to: row.final_path
 });
 
-const buildLogFlow = (row: LogEvent): PathFlow | null => {
-  const payload = safeParsePayload(row.payload_json);
-  if (!payload) {
-    return null;
-  }
-
-  const source = pickString(payload.source);
-  const target = pickString(payload.target);
-  if (source && target) {
-    return { from: source, to: target };
-  }
-
-  const archivedPath = pickString(payload.archived_path);
-  const restoredPath = pickString(payload.restored_path);
-  if (archivedPath && restoredPath) {
-    return { from: archivedPath, to: restoredPath };
-  }
-
-  const requestedDir = pickString(payload.requested_dir);
-  const fallbackDir = pickString(payload.fallback_dir);
-  if (requestedDir && fallbackDir) {
-    return { from: requestedDir, to: fallbackDir };
-  }
-
-  if (target) {
-    return { to: target };
-  }
-
-  const file = pickString(payload.file);
-  if (file) {
-    return { from: file };
-  }
-
-  return null;
-};
-
 const isRunningStatus = (value?: string) => value === "running" || value === "执行中";
 const isFailedStatus = (value: string) => value === "failed" || value === "失败";
 const isSuccessStatus = (value: string) => value === "success" || value === "成功";
@@ -227,6 +173,7 @@ const statusColor = (value: string) => {
 export function JobsPage() {
   const { message } = AntApp.useApp();
   const lastRunJobId = useAppStore((s) => s.lastRunJobId);
+  const screens = Grid.useBreakpoint();
 
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [tasks, setTasks] = useState<FileTaskRecord[]>([]);
@@ -234,6 +181,7 @@ export function JobsPage() {
   const [selectedJob, setSelectedJob] = useState<string>();
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [logQuery, setLogQuery] = useState("");
+  const isTaskCardMode = !screens.xl;
 
   const refreshJobDetails = useCallback(async (jobId: string, query: string) => {
     const [taskRows, logRows] = await Promise.all([
@@ -350,18 +298,28 @@ export function JobsPage() {
     }
   };
 
-  const renderFlowCell = (flow: PathFlow | null) => {
+  const renderFlowCell = (flow: PathFlow | null, options: FlowRenderOptions = {}) => {
     if (!flow?.from && !flow?.to) {
       return <Typography.Text type="secondary">-</Typography.Text>;
     }
 
+    const compact = options.compact === true;
+    const table = options.table === true;
     const fromPath = splitPath(flow.from);
     const toPath = splitPath(flow.to);
-    const flowTitle = flow.from && flow.to ? `${fromPath.fileName} → ${toPath.fileName}` : flow.to ? toPath.fileName : fromPath.fileName;
+    const flowTitle =
+      flow.from && flow.to
+        ? `${fromPath.fileName} → ${toPath.fileName}`
+        : flow.to
+          ? toPath.fileName
+          : fromPath.fileName;
     const copyText = `FROM: ${flow.from ?? "-"}\nTO: ${flow.to ?? "-"}`;
 
     return (
-      <div className="path-flow-cell">
+      <div
+        className={`path-flow-cell${compact ? " path-flow-cell-compact" : ""}${table ? " path-flow-cell-table" : ""}`}
+        tabIndex={0}
+      >
         <div className="path-flow-top">
           <Tooltip title={flow.from && flow.to ? `${flow.from}\n→\n${flow.to}` : flow.from ?? flow.to ?? "-"}>
             <span className="path-flow-title">{flowTitle}</span>
@@ -371,22 +329,65 @@ export function JobsPage() {
           </Button>
         </div>
 
-        <Tooltip title={flow.from ?? "-"}>
-          <div className="path-flow-line">
-            <span className="path-flow-label">FROM:</span>
-            <span className="path-flow-value">{flow.from ? fromPath.dir : "-"}</span>
+        {compact ? (
+          <div className="path-flow-compact-line">
+            <Tooltip title={flow.from ?? "-"}>
+              <span className="path-flow-compact-item">
+                <span className="path-flow-label">FROM:</span>
+                <span className="path-flow-value">{flow.from ? fromPath.dir : "-"}</span>
+              </span>
+            </Tooltip>
+            <span className="path-flow-compact-sep">|</span>
+            <Tooltip title={flow.to ?? "-"}>
+              <span className="path-flow-compact-item">
+                <span className="path-flow-label">TO:</span>
+                <span className="path-flow-value">{flow.to ? toPath.dir : "-"}</span>
+              </span>
+            </Tooltip>
           </div>
-        </Tooltip>
+        ) : (
+          <>
+            <Tooltip title={flow.from ?? "-"}>
+              <div className="path-flow-line">
+                <span className="path-flow-label">FROM:</span>
+                <span className="path-flow-value">{flow.from ? fromPath.dir : "-"}</span>
+              </div>
+            </Tooltip>
 
-        <Tooltip title={flow.to ?? "-"}>
-          <div className="path-flow-line">
-            <span className="path-flow-label">TO:</span>
-            <span className="path-flow-value">{flow.to ? toPath.dir : "-"}</span>
-          </div>
-        </Tooltip>
+            <Tooltip title={flow.to ?? "-"}>
+              <div className="path-flow-line">
+                <span className="path-flow-label">TO:</span>
+                <span className="path-flow-value">{flow.to ? toPath.dir : "-"}</span>
+              </div>
+            </Tooltip>
+          </>
+        )}
       </div>
     );
   };
+
+  const renderTaskActions = (row: FileTaskRecord) => (
+    <Space size={8} wrap>
+      <Button
+        size="small"
+        disabled={!row.recycle_path}
+        onClick={() => void onRestore(row.task_id)}
+      >
+        恢复
+      </Button>
+      <Popconfirm
+        title="撤销归档"
+        description="将删除归档文件并恢复原文件，是否继续？"
+        okText="确认撤销"
+        cancelText="取消"
+        onConfirm={() => onUndoArchive(row.task_id)}
+      >
+        <Button size="small" danger disabled={!canUndoArchive(row)}>
+          撤销归档
+        </Button>
+      </Popconfirm>
+    </Space>
+  );
 
   return (
     <Space direction="vertical" style={{ width: "100%" }} size={16}>
@@ -430,62 +431,73 @@ export function JobsPage() {
       </Card>
 
       <Card className="section-card" title="文件任务" extra={<Typography.Text>{selectedJob}</Typography.Text>}>
-        <Table
-          rowKey="task_id"
-          dataSource={tasks}
-          pagination={{ pageSize: 8 }}
-          columns={[
-            {
-              title: "文件流转",
-              width: 460,
-              render: (_: unknown, row: FileTaskRecord) => renderFlowCell(buildTaskFlow(row))
-            },
-            {
-              title: "提取",
-              dataIndex: "extract_status",
-              width: 90,
-              render: (value: string) => <Tag color={statusColor(value)}>{toChineseStatus(value)}</Tag>
-            },
-            {
-              title: "分类",
-              dataIndex: "classify_status",
-              width: 90,
-              render: (value: string) => <Tag color={statusColor(value)}>{toChineseStatus(value)}</Tag>
-            },
-            {
-              title: "归档",
-              dataIndex: "archive_status",
-              width: 90,
-              render: (value: string) => <Tag color={statusColor(value)}>{toChineseStatus(value)}</Tag>
-            },
-            {
-              title: "操作",
-              width: 180,
-              render: (_: unknown, row: FileTaskRecord) => (
-                <Space size={8}>
-                  <Button
-                    size="small"
-                    disabled={!row.recycle_path}
-                    onClick={() => void onRestore(row.task_id)}
-                  >
-                    恢复
-                  </Button>
-                  <Popconfirm
-                    title="撤销归档"
-                    description="将删除归档文件并恢复原文件，是否继续？"
-                    okText="确认撤销"
-                    cancelText="取消"
-                    onConfirm={() => onUndoArchive(row.task_id)}
-                  >
-                    <Button size="small" danger disabled={!canUndoArchive(row)}>
-                      撤销归档
-                    </Button>
-                  </Popconfirm>
-                </Space>
-              )
-            }
-          ]}
-        />
+        {isTaskCardMode ? (
+          <List
+            className="task-card-list"
+            dataSource={tasks}
+            pagination={{ pageSize: 8, hideOnSinglePage: true, size: "small" }}
+            renderItem={(row) => (
+              <List.Item key={row.task_id}>
+                <div className="task-card-item">
+                  {renderFlowCell(buildTaskFlow(row), { compact: true })}
+
+                  <div className="task-card-statuses">
+                    <span className="task-card-status-item">
+                      <span className="task-card-status-label">提取</span>
+                      <Tag color={statusColor(row.extract_status)}>{toChineseStatus(row.extract_status)}</Tag>
+                    </span>
+                    <span className="task-card-status-item">
+                      <span className="task-card-status-label">分类</span>
+                      <Tag color={statusColor(row.classify_status)}>{toChineseStatus(row.classify_status)}</Tag>
+                    </span>
+                    <span className="task-card-status-item">
+                      <span className="task-card-status-label">归档</span>
+                      <Tag color={statusColor(row.archive_status)}>{toChineseStatus(row.archive_status)}</Tag>
+                    </span>
+                  </div>
+
+                  <div className="task-card-actions">{renderTaskActions(row)}</div>
+                </div>
+              </List.Item>
+            )}
+          />
+        ) : (
+          <Table
+            rowKey="task_id"
+            dataSource={tasks}
+            pagination={{ pageSize: 8 }}
+            columns={[
+              {
+                title: "文件流转",
+                width: 340,
+                render: (_: unknown, row: FileTaskRecord) => renderFlowCell(buildTaskFlow(row), { table: true })
+              },
+              {
+                title: "提取",
+                dataIndex: "extract_status",
+                width: 90,
+                render: (value: string) => <Tag color={statusColor(value)}>{toChineseStatus(value)}</Tag>
+              },
+              {
+                title: "分类",
+                dataIndex: "classify_status",
+                width: 90,
+                render: (value: string) => <Tag color={statusColor(value)}>{toChineseStatus(value)}</Tag>
+              },
+              {
+                title: "归档",
+                dataIndex: "archive_status",
+                width: 90,
+                render: (value: string) => <Tag color={statusColor(value)}>{toChineseStatus(value)}</Tag>
+              },
+              {
+                title: "操作",
+                width: 170,
+                render: (_: unknown, row: FileTaskRecord) => renderTaskActions(row)
+              }
+            ]}
+          />
+        )}
         {taskFailures.length > 0 && (
           <Typography.Text type="danger">失败条数: {taskFailures.length}</Typography.Text>
         )}
@@ -524,11 +536,6 @@ export function JobsPage() {
                   {toChineseLevel(value)}
                 </Tag>
               )
-            },
-            {
-              title: "文件流转",
-              width: 460,
-              render: (_: unknown, row: LogEvent) => renderFlowCell(buildLogFlow(row))
             },
             { title: "阶段", dataIndex: "stage", width: 110, render: (value: string) => toChineseStage(value) },
             { title: "消息", dataIndex: "message", render: (value: string) => toChineseMessage(value) }
