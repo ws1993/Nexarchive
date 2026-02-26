@@ -1,0 +1,41 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Premium Gradient Background -->
+  <rect width="1024" height="1024" rx="220" fill="url(#paint0_linear)"/>
+  
+  <!-- Subtle Border Glow -->
+  <rect x="10" y="10" width="1004" height="1004" rx="210" stroke="white" stroke-opacity="0.1" stroke-width="4"/>
+
+  <!-- Main Icon: Modern Folder + Nex symbol -->
+  <g filter="url(#dropShadow)">
+    <!-- Folder Silhouette -->
+    <path d="M280 340C280 306.863 306.863 280 340 280H480L544 340H684C717.137 340 744 366.863 744 400V660C744 693.137 717.137 720 684 720H340C306.863 720 280 693.137 280 660V340Z" fill="white" fill-opacity="0.12"/>
+    
+    <!-- Stylized 'N' Architecture -->
+    <path d="M400 420V640L512 420L624 640V420" stroke="white" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Intelligence Spark -->
+    <circle cx="680" cy="460" r="24" fill="#00ffff" fill-opacity="0.9">
+       <animate attributeName="opacity" values="0.5;1;0.5" dur="4s" repeatCount="indefinite" />
+    </circle>
+  </g>
+
+  <!-- Grounding Platform / Shadow -->
+  <path d="M300 780H724" stroke="white" stroke-opacity="0.05" stroke-width="12" stroke-linecap="round"/>
+
+  <defs>
+    <linearGradient id="paint0_linear" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0058D9"/>
+      <stop offset="1" stop-color="#00A6A6"/>
+    </linearGradient>
+    <filter id="dropShadow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="16"/>
+      <feGaussianBlur stdDeviation="20"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.06 0 0 0 0 0.16 0 0 0 0 0.26 0 0 0 0.3 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+    </filter>
+  </defs>
+</svg>
