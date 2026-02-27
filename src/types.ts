@@ -25,6 +25,12 @@ export interface RetentionConfig {
   db_log_retention_days: number;
 }
 
+export interface UpdaterConfig {
+  auto_check_on_startup: boolean;
+  proxy_enabled: boolean;
+  proxy_url_encrypted: string;
+}
+
 export interface AppConfig {
   inbox_path: string;
   archive_root_path: string;
@@ -34,6 +40,7 @@ export interface AppConfig {
   llm: LLMConfig;
   mineru: MineruConfig;
   retention: RetentionConfig;
+  updater: UpdaterConfig;
 }
 
 export interface InitPreviewItem {
@@ -118,5 +125,10 @@ export const defaultConfig: AppConfig = {
     max_log_files: 5,
     max_db_logs: 10000,
     db_log_retention_days: 30
+  },
+  updater: {
+    auto_check_on_startup: true,
+    proxy_enabled: false,
+    proxy_url_encrypted: ""
   }
 };

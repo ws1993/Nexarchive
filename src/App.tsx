@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   App as AntApp,
@@ -24,6 +24,13 @@ import { InitWizardPage } from "./pages/InitWizardPage";
 import { JobsPage } from "./pages/JobsPage";
 import { RulesPage } from "./pages/RulesPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import {
+  checkForUpdate,
+  disposeUpdate,
+  downloadAndInstallUpdate,
+  formatUpdaterError,
+  summarizeUpdate
+} from "./updater";
 
 const { Header, Sider, Content } = Layout;
 
@@ -36,17 +43,107 @@ const menuItems = [
 ];
 
 function App() {
-  const { message } = AntApp.useApp();
+  const { message, modal } = AntApp.useApp();
   const [activeKey, setActiveKey] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
+  const [configReady, setConfigReady] = useState(false);
+  const autoUpdateCheckedRef = useRef(false);
 
+  const config = useAppStore((s) => s.config);
   const loadingConfig = useAppStore((s) => s.loadingConfig);
   const refreshConfig = useAppStore((s) => s.refreshConfig);
   const runJobNow = useAppStore((s) => s.runJobNow);
 
   useEffect(() => {
-    void refreshConfig();
+    let active = true;
+    void (async () => {
+      try {
+        await refreshConfig();
+      } finally {
+        if (active) setConfigReady(true);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
   }, [refreshConfig]);
+
+  useEffect(() => {
+    if (!configReady || autoUpdateCheckedRef.current) return;
+    autoUpdateCheckedRef.current = true;
+
+    if (!config.updater.auto_check_on_startup) return;
+
+    void (async () => {
+      try {
+        const update = await checkForUpdate({
+          proxyEnabled: config.updater.proxy_enabled,
+          proxyUrl: config.updater.proxy_url_encrypted
+        });
+
+        if (!update) return;
+
+        const summary = summarizeUpdate(update);
+        const notes = summary.body?.trim() || "本次版本未提供更新说明。";
+
+        modal.confirm({
+          title: `发现新版本 ${summary.version}`,
+          width: 680,
+          okText: "立即更新",
+          cancelText: "稍后再说",
+          content: (
+            <Space direction="vertical" size="small" style={{ width: "100%" }}>
+              <Typography.Text type="secondary">
+                当前版本 {summary.currentVersion}，发现可用更新 {summary.version}
+              </Typography.Text>
+              <Typography.Text strong>更新说明</Typography.Text>
+              <div
+                style={{
+                  maxHeight: 220,
+                  overflow: "auto",
+                  whiteSpace: "pre-wrap",
+                  background: "#f6f8fb",
+                  borderRadius: 8,
+                  padding: 12
+                }}
+              >
+                {notes}
+              </div>
+            </Space>
+          ),
+          onOk: async () => {
+            try {
+              message.open({
+                key: "startup-update",
+                type: "loading",
+                content: "正在下载并安装更新，请稍候...",
+                duration: 0
+              });
+              await downloadAndInstallUpdate(update);
+            } catch (error) {
+              message.error(formatUpdaterError(error));
+            } finally {
+              await disposeUpdate(update);
+              message.destroy("startup-update");
+            }
+          },
+          onCancel: () => {
+            void disposeUpdate(update);
+          }
+        });
+      } catch (error) {
+        console.warn("startup update check skipped:", error);
+      }
+    })();
+  }, [
+    configReady,
+    config.updater.auto_check_on_startup,
+    config.updater.proxy_enabled,
+    config.updater.proxy_url_encrypted,
+    message,
+    modal
+  ]);
 
   const title = useMemo(() => {
     const item = menuItems.find((v) => v.key === activeKey);

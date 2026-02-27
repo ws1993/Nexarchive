@@ -70,6 +70,24 @@ impl Default for RetentionConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+pub struct UpdaterConfig {
+    pub auto_check_on_startup: bool,
+    pub proxy_enabled: bool,
+    pub proxy_url_encrypted: String,
+}
+
+impl Default for UpdaterConfig {
+    fn default() -> Self {
+        Self {
+            auto_check_on_startup: true,
+            proxy_enabled: false,
+            proxy_url_encrypted: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppConfig {
     pub inbox_path: String,
     pub archive_root_path: String,
@@ -79,6 +97,7 @@ pub struct AppConfig {
     pub llm: LLMConfig,
     pub mineru: MineruConfig,
     pub retention: RetentionConfig,
+    pub updater: UpdaterConfig,
 }
 
 impl Default for AppConfig {
@@ -92,6 +111,7 @@ impl Default for AppConfig {
             llm: LLMConfig::default(),
             mineru: MineruConfig::default(),
             retention: RetentionConfig::default(),
+            updater: UpdaterConfig::default(),
         }
     }
 }

@@ -42,6 +42,10 @@ impl ConfigService {
             config.mineru.api_token_encrypted =
                 self.decrypt_api_key(&config.mineru.api_token_encrypted)?;
         }
+        if config.updater.proxy_url_encrypted.starts_with(ENC_PREFIX) {
+            config.updater.proxy_url_encrypted =
+                self.decrypt_api_key(&config.updater.proxy_url_encrypted)?;
+        }
 
         Ok(config)
     }
@@ -57,6 +61,12 @@ impl ConfigService {
             && !disk.mineru.api_token_encrypted.starts_with(ENC_PREFIX)
         {
             disk.mineru.api_token_encrypted = self.encrypt_api_key(&disk.mineru.api_token_encrypted)?;
+        }
+        if !disk.updater.proxy_url_encrypted.is_empty()
+            && !disk.updater.proxy_url_encrypted.starts_with(ENC_PREFIX)
+        {
+            disk.updater.proxy_url_encrypted =
+                self.encrypt_api_key(&disk.updater.proxy_url_encrypted)?;
         }
 
         let content = serde_json::to_string_pretty(&disk)?;

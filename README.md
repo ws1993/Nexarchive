@@ -70,6 +70,45 @@ Build outputs:
 - `src-tauri/target/release/bundle/msi/NexArchive_<version>_x64_en-US.msi`
 - `src-tauri/target/release/bundle/nsis/NexArchive_<version>_x64-setup.exe`
 
+## Release Workflow (Tag Driven)
+
+Prepare a new release version:
+
+```bash
+npm run release:prepare -- 0.2.0
+npm run release:verify -- 0.2.0
+```
+
+Extract the changelog section for a version:
+
+```bash
+npm run release:extract-notes -- v0.2.0
+```
+
+After committing version changes and changelog updates, push the release tag:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The GitHub workflow `.github/workflows/release.yml` will build and publish release assets and updater metadata.
+
+## Updater Signing Setup
+
+The updater uses signed artifacts and requires these GitHub secrets:
+
+- `TAURI_SIGNING_PRIVATE_KEY`
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+
+Generate keys once locally:
+
+```bash
+npm run tauri signer generate -w ~/.tauri/nexarchive.key
+```
+
+Copy the generated public key into `src-tauri/tauri.conf.json` at `plugins.updater.pubkey`.
+
 ## Notes
 
 - No external runtime dependencies are required for end users (no Python/Tesseract).

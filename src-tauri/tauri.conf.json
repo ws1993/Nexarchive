@@ -23,7 +23,13 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -32,5 +38,16 @@
       "icons/icon.icns",
       "icons/icon.png"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "RWS197B0BS1t5ryVHWCGnApvKxBZGf9mIu+TllWfySaMngYtqEy5HY+R",
+      "endpoints": [
+        "https://github.com/ws1993/Nexarchive/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

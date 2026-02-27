@@ -8,15 +8,27 @@ import {
   Form,
   Input,
   InputNumber,
+  Progress,
   Row,
   Space,
-  Switch
+  Switch,
+  Typography
 } from "antd";
+import { getVersion } from "@tauri-apps/api/app";
 import { api } from "../api";
 import { useAppStore } from "../store";
+import {
+  checkForUpdate,
+  disposeUpdate,
+  downloadAndInstallUpdate,
+  formatUpdaterError,
+  resolveUpdaterProxy,
+  summarizeUpdate,
+  type UpdaterProgress
+} from "../updater";
 
 export function SettingsPage() {
-  const { message } = AntApp.useApp();
+  const { message, modal } = AntApp.useApp();
   const config = useAppStore((s) => s.config);
   const setConfig = useAppStore((s) => s.setConfig);
   const saveConfig = useAppStore((s) => s.saveConfig);
@@ -24,13 +36,23 @@ export function SettingsPage() {
 
   const [llmApiKey, setLlmApiKey] = useState("");
   const [mineruToken, setMineruToken] = useState("");
+  const [appVersion, setAppVersion] = useState("");
   const [testingLlm, setTestingLlm] = useState(false);
   const [testingMineru, setTestingMineru] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [installingUpdate, setInstallingUpdate] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<UpdaterProgress | null>(null);
 
   useEffect(() => {
     setLlmApiKey(config.llm.api_key_encrypted);
     setMineruToken(config.mineru.api_token_encrypted);
   }, [config.llm.api_key_encrypted, config.mineru.api_token_encrypted]);
+
+  useEffect(() => {
+    void getVersion()
+      .then((version) => setAppVersion(version))
+      .catch(() => setAppVersion("unknown"));
+  }, []);
 
   const canTestLlm = useMemo(() => {
     return Boolean(config.llm.base_uri && config.llm.model && llmApiKey);
@@ -40,7 +62,29 @@ export function SettingsPage() {
     return Boolean(config.mineru.enabled && config.mineru.base_uri && mineruToken);
   }, [config.mineru.enabled, config.mineru.base_uri, mineruToken]);
 
+  const hasValidProxy = useMemo(() => {
+    try {
+      resolveUpdaterProxy(
+        config.updater.proxy_enabled,
+        config.updater.proxy_url_encrypted
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }, [config.updater.proxy_enabled, config.updater.proxy_url_encrypted]);
+
   const onSave = async () => {
+    try {
+      resolveUpdaterProxy(
+        config.updater.proxy_enabled,
+        config.updater.proxy_url_encrypted
+      );
+    } catch (error) {
+      message.error(formatUpdaterError(error));
+      return;
+    }
+
     setConfig({
       ...config,
       llm: { ...config.llm, api_key_encrypted: llmApiKey },
@@ -86,6 +130,85 @@ export function SettingsPage() {
       setTestingMineru(false);
     }
   };
+
+  const onCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    setUpdateProgress(null);
+
+    let updateHandle: Awaited<ReturnType<typeof checkForUpdate>> = null;
+    try {
+      updateHandle = await checkForUpdate({
+        proxyEnabled: config.updater.proxy_enabled,
+        proxyUrl: config.updater.proxy_url_encrypted
+      });
+
+      if (!updateHandle) {
+        message.success("当前已是最新版本");
+        return;
+      }
+
+      const summary = summarizeUpdate(updateHandle);
+      const notes = summary.body?.trim() || "本次版本未提供更新说明。";
+
+      modal.confirm({
+        title: `发现新版本 ${summary.version}`,
+        width: 700,
+        okText: "下载并安装",
+        cancelText: "取消",
+        content: (
+          <Space direction="vertical" size="small" style={{ width: "100%" }}>
+            <Typography.Text type="secondary">
+              当前版本 {summary.currentVersion}，可更新到 {summary.version}
+            </Typography.Text>
+            <Typography.Text strong>更新说明</Typography.Text>
+            <div
+              style={{
+                maxHeight: 220,
+                overflow: "auto",
+                whiteSpace: "pre-wrap",
+                background: "#f6f8fb",
+                borderRadius: 8,
+                padding: 12
+              }}
+            >
+              {notes}
+            </div>
+          </Space>
+        ),
+        onOk: async () => {
+          setInstallingUpdate(true);
+          try {
+            await downloadAndInstallUpdate(updateHandle!, (progress) => {
+              setUpdateProgress(progress);
+            });
+          } catch (error) {
+            message.error(formatUpdaterError(error));
+          } finally {
+            setInstallingUpdate(false);
+            await disposeUpdate(updateHandle);
+          }
+        },
+        onCancel: () => {
+          void disposeUpdate(updateHandle);
+        }
+      });
+    } catch (error) {
+      message.error(formatUpdaterError(error));
+      await disposeUpdate(updateHandle);
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  const progressPercent = useMemo(() => {
+    if (!updateProgress || !updateProgress.totalBytes || updateProgress.totalBytes <= 0) {
+      return undefined;
+    }
+    return Math.min(
+      100,
+      Math.round((updateProgress.downloadedBytes / updateProgress.totalBytes) * 100)
+    );
+  }, [updateProgress]);
 
   return (
     <Form layout="vertical" className="settings-form">
@@ -329,6 +452,96 @@ export function SettingsPage() {
               </Form.Item>
             </Col>
           </Row>
+        </Card>
+
+        <Card className="section-card" title="应用更新">
+          <Row gutter={24}>
+            <Col xs={24} md={8}>
+              <Form.Item label="当前版本">
+                <Input value={appVersion} disabled />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item label="启动时自动检查更新">
+                <Switch
+                  checked={config.updater.auto_check_on_startup}
+                  onChange={(checked) =>
+                    setConfig({
+                      ...config,
+                      updater: {
+                        ...config.updater,
+                        auto_check_on_startup: checked
+                      }
+                    })
+                  }
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item label="更新代理（HTTP）">
+                <Switch
+                  checked={config.updater.proxy_enabled}
+                  onChange={(checked) =>
+                    setConfig({
+                      ...config,
+                      updater: {
+                        ...config.updater,
+                        proxy_enabled: checked
+                      }
+                    })
+                  }
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={16}>
+              <Form.Item
+                label="代理地址"
+                validateStatus={hasValidProxy ? undefined : "error"}
+                help={hasValidProxy ? "示例：http://user:pass@127.0.0.1:7890" : "仅支持 http:// 开头的代理地址"}
+              >
+                <Input
+                  placeholder="http://user:pass@127.0.0.1:7890"
+                  value={config.updater.proxy_url_encrypted}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      updater: {
+                        ...config.updater,
+                        proxy_url_encrypted: e.target.value
+                      }
+                    })
+                  }
+                  disabled={!config.updater.proxy_enabled}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item label=" " colon={false}>
+                <Button
+                  block
+                  onClick={onCheckUpdate}
+                  loading={checkingUpdate || installingUpdate}
+                  disabled={config.updater.proxy_enabled && !hasValidProxy}
+                >
+                  检查更新
+                </Button>
+              </Form.Item>
+            </Col>
+          </Row>
+          {updateProgress ? (
+            <Space direction="vertical" size={6} style={{ width: "100%" }}>
+              <Typography.Text type="secondary">
+                {updateProgress.phase === "downloading"
+                  ? "正在下载更新包..."
+                  : "更新包下载完成，正在安装..."}
+              </Typography.Text>
+              <Progress
+                percent={progressPercent}
+                status={updateProgress.phase === "installing" ? "active" : "normal"}
+                showInfo={progressPercent !== undefined}
+              />
+            </Space>
+          ) : null}
         </Card>
 
         {/* Action Buttons */}
