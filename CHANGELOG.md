@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.3] - 2026-02-27
+
+### Changed
+- Updated `release-changelog` skill to skip git operations; changelog and version bumps only.
+
 ## [0.1.2] - 2026-02-27
 
 ### Added
