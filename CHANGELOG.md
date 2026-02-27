@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.1] - 2026-02-27
+
+### Changed
+- Extracted folder tree data into a shared module (`src/data/folderTree.ts`) to eliminate duplication between RulesPage and InitWizardPage.
+- InitWizardPage folder preview now uses static shared data instead of a redundant API call.
+- Fixed display level and tag color of `99_历史档案` to match top-level folder styling.
+
+### Build
+- Added `publish-release.bat` script to automate the full release flow (prepare, verify, build, commit, tag, push).
+- Enhanced Tauri release workflow with signing key pre-validation to fail fast on missing secrets.
+
 ## [0.1.0] - 2026-02-27
 
 ### Added
