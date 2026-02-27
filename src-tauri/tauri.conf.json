@@ -41,7 +41,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "RWS197B0BS1t5ryVHWCGnApvKxBZGf9mIu+TllWfySaMngYtqEy5HY+R",
+      "pubkey": "RWRq9+jU9CBtleXAd47M3jnTGoTdh/nYyT2D0VLN8IZMqrvXkUmEY9X8",
       "endpoints": [
         "https://github.com/ws1993/Nexarchive/releases/latest/download/latest.json"
       ],
