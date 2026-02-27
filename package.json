@@ -10,7 +10,8 @@
     "tauri": "tauri",
     "release:prepare": "node scripts/release/prepare-version.mjs",
     "release:verify": "node scripts/release/verify-version.mjs",
-    "release:extract-notes": "node scripts/release/extract-changelog.mjs"
+    "release:extract-notes": "node scripts/release/extract-changelog.mjs",
+    "release:publish": "scripts\\release\\publish-release.bat"
   },
   "dependencies": {
     "@ant-design/icons": "^5.5.1",
