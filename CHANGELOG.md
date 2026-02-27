@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.5] - 2026-02-27
+
+### Build
+- Updated Tauri updater public key to full minisign format.
+
 ## [0.1.4] - 2026-02-27
 
 ### Build
