@@ -131,7 +131,7 @@ export function RulesPage() {
                   dataIndex: "code",
                   width: 70,
                   render: (text: string, row: FolderTreeRow) => (
-                    <Tag color={row.children ? "blue" : "cyan"}>{text}</Tag>
+                    <Tag color={row.children || row.code === "99" ? "blue" : "cyan"}>{text}</Tag>
                   )
                 },
                 {
@@ -139,7 +139,7 @@ export function RulesPage() {
                   dataIndex: "folder",
                   width: 160,
                   render: (text: string, row: FolderTreeRow) => (
-                    <Typography.Text strong style={row.children ? {} : { paddingLeft: 12 }}>
+                    <Typography.Text strong style={row.children || row.code === "99" ? {} : { paddingLeft: 12 }}>
                       {text}
                     </Typography.Text>
                   )
