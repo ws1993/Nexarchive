@@ -1,6 +1,6 @@
 ---
 name: release-changelog
-description: 自动化版本发布工作流：更新 CHANGELOG.md、同步版本号、提交并打 tag。触发场景：用户说"把更新维护到 CHANGELOG，tag X.X.X"、"更新 changelog，打 tag X.X.X"、"发布 X.X.X"、"release X.X.X" 等要求完成版本记录和 git tag 的指令。
+description: 更新 CHANGELOG.md 并同步版本号。触发场景：用户说"把更新维护到 CHANGELOG，tag X.X.X"、"更新 changelog X.X.X"、"发布 X.X.X" 等要求完成版本记录的指令。只负责文件更新，不执行 git 操作。
 ---
 
 # Release Changelog
@@ -60,17 +60,12 @@ git log --oneline <prev-tag>..HEAD
 - 提交前缀参考：`功能:` / `feat` → Added；`优化:` / `fix` → Changed 或 Fixed；`构建:` / `build` / `chore` → Build；`重构:` → Changed
 - 用简洁的英文或与 CHANGELOG 现有语言风格一致的语言书写条目
 
-### 5. 提交并打 tag
+### 5. 完成
+
+文件更新后告知用户已完成，提示运行：
 
 ```bash
-# 暂存版本相关文件（不要 git add .）
-git add CHANGELOG.md package.json package-lock.json src-tauri/Cargo.toml src-tauri/tauri.conf.json
-
-# 提交
-git commit -m "chore(release): vX.X.X"
-
-# 打带注释的 tag
-git tag -a vX.X.X -m "release: vX.X.X"
+npm run release:publish -- X.X.X
 ```
 
-完成后告知用户 tag 已创建，并提示推送命令：`git push origin main vX.X.X`。
+**不执行任何 git add / git commit / git tag 操作。**
