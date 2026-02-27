@@ -1,4 +1,33 @@
 import { Card, Col, Row, Space, Table, Tag, Typography } from "antd";
+import { folderTreeData } from "../data/folderTree";
+import type { InitPreviewItem } from "../types";
+
+const descMap: Record<string, string> = {
+  "10": "身份与法律等长期关键文件",
+  "11": "证件与法律身份证明材料",
+  "12": "学历、证书与教育履历",
+  "13": "简历、合同与职业发展记录",
+  "14": "病历、体检和医疗相关资料",
+  "15": "信用、资产与金融证明信息",
+  "16": "家庭关系与社会关系资料",
+  "20": "持续维护的生活/工作领域",
+  "21": "预算、账单与报税记录",
+  "22": "健康计划、诊疗与跟踪记录",
+  "23": "住房、物业与生活缴费资料",
+  "24": "工作成长与年度能力建设材料",
+  "30": "有目标和截止时间的事项",
+  "31": "正在推进的工作类项目",
+  "32": "个人计划、兴趣或副业项目",
+  "40": "学习资料、知识沉淀与模板",
+  "41": "结构化知识与长期沉淀内容",
+  "42": "参考资料、输入素材与研读材料",
+  "43": "可复用模板、规范与表单",
+  "50": "媒体、创作与软件资源",
+  "51": "图片、音视频等原始素材",
+  "52": "成品稿件与创作结果文件",
+  "53": "安装包、脚本与工具资源",
+  "99": "完成或失效后的封存内容"
+};
 
 interface FolderTreeRow {
   key: string;
@@ -8,67 +37,17 @@ interface FolderTreeRow {
   children?: FolderTreeRow[];
 }
 
-const folderTreeRows: FolderTreeRow[] = [
-  {
-    key: "10",
-    code: "10",
-    folder: "10_身份基石",
-    desc: "身份与法律等长期关键文件",
-    children: [
-      { key: "11", code: "11", folder: "11_法律证件", desc: "证件与法律身份证明材料" },
-      { key: "12", code: "12", folder: "12_教育背景", desc: "学历、证书与教育履历" },
-      { key: "13", code: "13", folder: "13_职业履历", desc: "简历、合同与职业发展记录" },
-      { key: "14", code: "14", folder: "14_健康档案", desc: "病历、体检和医疗相关资料" },
-      { key: "15", code: "15", folder: "15_财务信用", desc: "信用、资产与金融证明信息" },
-      { key: "16", code: "16", folder: "16_社会关系", desc: "家庭关系与社会关系资料" }
-    ]
-  },
-  {
-    key: "20",
-    code: "20",
-    folder: "20_责任领域",
-    desc: "持续维护的生活/工作领域",
-    children: [
-      { key: "21", code: "21", folder: "21_财务管理", desc: "预算、账单与报税记录" },
-      { key: "22", code: "22", folder: "22_健康管理", desc: "健康计划、诊疗与跟踪记录" },
-      { key: "23", code: "23", folder: "23_居住管理", desc: "住房、物业与生活缴费资料" },
-      { key: "24", code: "24", folder: "24_职业发展", desc: "工作成长与年度能力建设材料" }
-    ]
-  },
-  {
-    key: "30",
-    code: "30",
-    folder: "30_行动项目",
-    desc: "有目标和截止时间的事项",
-    children: [
-      { key: "31", code: "31", folder: "31_工作项目", desc: "正在推进的工作类项目" },
-      { key: "32", code: "32", folder: "32_个人项目", desc: "个人计划、兴趣或副业项目" }
-    ]
-  },
-  {
-    key: "40",
-    code: "40",
-    folder: "40_知识金库",
-    desc: "学习资料、知识沉淀与模板",
-    children: [
-      { key: "41", code: "41", folder: "41_知识库", desc: "结构化知识与长期沉淀内容" },
-      { key: "42", code: "42", folder: "42_资料库", desc: "参考资料、输入素材与研读材料" },
-      { key: "43", code: "43", folder: "43_模板", desc: "可复用模板、规范与表单" }
-    ]
-  },
-  {
-    key: "50",
-    code: "50",
-    folder: "50_数字资产",
-    desc: "媒体、创作与软件资源",
-    children: [
-      { key: "51", code: "51", folder: "51_媒体素材", desc: "图片、音视频等原始素材" },
-      { key: "52", code: "52", folder: "52_创作产出", desc: "成品稿件与创作结果文件" },
-      { key: "53", code: "53", folder: "53_软件资源", desc: "安装包、脚本与工具资源" }
-    ]
-  },
-  { key: "99", code: "99", folder: "99_历史档案", desc: "完成或失效后的封存内容" }
-];
+function toTableRow(item: InitPreviewItem): FolderTreeRow {
+  return {
+    key: item.code,
+    code: item.code,
+    folder: item.folder,
+    desc: descMap[item.code] ?? "",
+    children: item.children?.map(toTableRow)
+  };
+}
+
+const folderTreeRows = folderTreeData.map(toTableRow);
 
 const vocabRows = [
   ["凭证与财务", "发票、小票、账单、保单、回执"],

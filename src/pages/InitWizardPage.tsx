@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Alert,
   App as AntApp,
   Button,
   Card,
   Col,
-  Divider,
   Form,
   Input,
   Row,
@@ -15,14 +14,15 @@ import {
 } from "antd";
 import { api } from "../api";
 import { useAppStore } from "../store";
+import { folderTreeData } from "../data/folderTree";
 import type { InitPreviewItem } from "../types";
 
 function toTreeNode(item: InitPreviewItem, keyPrefix = ""): any {
-  const key = `${keyPrefix}${item.code}_${item.folder}`;
+  const key = `${keyPrefix}${item.code}`;
   return {
     key,
-    title: `${item.code}_${item.folder}`,
-    children: item.children?.map((v, idx) => toTreeNode(v, `${key}_${idx}_`))
+    title: item.folder,
+    children: item.children?.map((v) => toTreeNode(v, `${key}_`))
   };
 }
 
@@ -32,12 +32,7 @@ export function InitWizardPage() {
   const setConfig = useAppStore((s) => s.setConfig);
   const refreshConfig = useAppStore((s) => s.refreshConfig);
 
-  const [preview, setPreview] = useState<InitPreviewItem[]>([]);
   const [working, setWorking] = useState(false);
-
-  useEffect(() => {
-    void api.getInitPreview().then(setPreview);
-  }, []);
 
   const onInit = async () => {
     if (!config.inbox_path || !config.archive_root_path) {
@@ -99,7 +94,7 @@ export function InitWizardPage() {
             <div style={{ maxHeight: 400, overflowY: 'auto', padding: '0 8px' }}>
               <Tree
                 defaultExpandAll
-                treeData={preview.map((v, idx) => toTreeNode(v, `${idx}_`))}
+                treeData={folderTreeData.map((v) => toTreeNode(v))}
               />
             </div>
           </Card>
