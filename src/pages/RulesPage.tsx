@@ -1,12 +1,73 @@
-import { Card, Col, Divider, Row, Space, Table, Tag, Typography } from "antd";
+import { Card, Col, Row, Space, Table, Tag, Typography } from "antd";
 
-const folderRows = [
-  ["10", "10_身份基石", "身份与法律等长期关键文件"],
-  ["20", "20_责任领域", "持续维护的生活/工作领域"],
-  ["30", "30_行动项目", "有目标和截止时间的事项"],
-  ["40", "40_知识金库", "学习资料、知识沉淀与模板"],
-  ["50", "50_数字资产", "媒体、创作与软件资源"],
-  ["99", "99_历史档案", "完成或失效后的封存内容"]
+interface FolderTreeRow {
+  key: string;
+  code: string;
+  folder: string;
+  desc: string;
+  children?: FolderTreeRow[];
+}
+
+const folderTreeRows: FolderTreeRow[] = [
+  {
+    key: "10",
+    code: "10",
+    folder: "10_身份基石",
+    desc: "身份与法律等长期关键文件",
+    children: [
+      { key: "11", code: "11", folder: "11_法律证件", desc: "证件与法律身份证明材料" },
+      { key: "12", code: "12", folder: "12_教育背景", desc: "学历、证书与教育履历" },
+      { key: "13", code: "13", folder: "13_职业履历", desc: "简历、合同与职业发展记录" },
+      { key: "14", code: "14", folder: "14_健康档案", desc: "病历、体检和医疗相关资料" },
+      { key: "15", code: "15", folder: "15_财务信用", desc: "信用、资产与金融证明信息" },
+      { key: "16", code: "16", folder: "16_社会关系", desc: "家庭关系与社会关系资料" }
+    ]
+  },
+  {
+    key: "20",
+    code: "20",
+    folder: "20_责任领域",
+    desc: "持续维护的生活/工作领域",
+    children: [
+      { key: "21", code: "21", folder: "21_财务管理", desc: "预算、账单与报税记录" },
+      { key: "22", code: "22", folder: "22_健康管理", desc: "健康计划、诊疗与跟踪记录" },
+      { key: "23", code: "23", folder: "23_居住管理", desc: "住房、物业与生活缴费资料" },
+      { key: "24", code: "24", folder: "24_职业发展", desc: "工作成长与年度能力建设材料" }
+    ]
+  },
+  {
+    key: "30",
+    code: "30",
+    folder: "30_行动项目",
+    desc: "有目标和截止时间的事项",
+    children: [
+      { key: "31", code: "31", folder: "31_工作项目", desc: "正在推进的工作类项目" },
+      { key: "32", code: "32", folder: "32_个人项目", desc: "个人计划、兴趣或副业项目" }
+    ]
+  },
+  {
+    key: "40",
+    code: "40",
+    folder: "40_知识金库",
+    desc: "学习资料、知识沉淀与模板",
+    children: [
+      { key: "41", code: "41", folder: "41_知识库", desc: "结构化知识与长期沉淀内容" },
+      { key: "42", code: "42", folder: "42_资料库", desc: "参考资料、输入素材与研读材料" },
+      { key: "43", code: "43", folder: "43_模板", desc: "可复用模板、规范与表单" }
+    ]
+  },
+  {
+    key: "50",
+    code: "50",
+    folder: "50_数字资产",
+    desc: "媒体、创作与软件资源",
+    children: [
+      { key: "51", code: "51", folder: "51_媒体素材", desc: "图片、音视频等原始素材" },
+      { key: "52", code: "52", folder: "52_创作产出", desc: "成品稿件与创作结果文件" },
+      { key: "53", code: "53", folder: "53_软件资源", desc: "安装包、脚本与工具资源" }
+    ]
+  },
+  { key: "99", code: "99", folder: "99_历史档案", desc: "完成或失效后的封存内容" }
 ];
 
 const vocabRows = [
@@ -59,13 +120,33 @@ export function RulesPage() {
             <Table
               size="middle"
               pagination={false}
-              dataSource={folderRows.map((v) => ({ key: v[0], code: v[0], folder: v[1], desc: v[2] }))}
+              rowKey="key"
+              dataSource={folderTreeRows}
+              defaultExpandAllRows
+              expandable={{ childrenColumnName: "children", indentSize: 16, expandIconColumnIndex: 0 }}
               columns={[
-                { title: "编号", dataIndex: "code", width: 70, render: (text) => <Tag color="blue">{text}</Tag> },
-                { title: "目录", dataIndex: "folder", width: 140, render: (text) => <Typography.Text strong>{text}</Typography.Text> },
+                { title: "", key: "expand", width: 40 },
+                {
+                  title: "编号",
+                  dataIndex: "code",
+                  width: 70,
+                  render: (text: string, row: FolderTreeRow) => (
+                    <Tag color={row.children ? "blue" : "cyan"}>{text}</Tag>
+                  )
+                },
+                {
+                  title: "目录",
+                  dataIndex: "folder",
+                  width: 160,
+                  render: (text: string, row: FolderTreeRow) => (
+                    <Typography.Text strong style={row.children ? {} : { paddingLeft: 12 }}>
+                      {text}
+                    </Typography.Text>
+                  )
+                },
                 { title: "说明", dataIndex: "desc" }
               ]}
-              scroll={{ y: 240 }}
+              scroll={{ y: 300 }}
             />
           </Card>
         </Col>
