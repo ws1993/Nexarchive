@@ -1,117 +1,81 @@
 # NexArchive
 
-NexArchive is a Windows desktop app for local file auto-archiving.
+NexArchive is an intelligent Windows desktop application designed for automated local file archiving and organization. It leverages the power of Local LLMs and advanced file extraction to seamlessly categorize, rename, and file your documents based on a controlled vocabulary and structured archive hierarchy.
 
-## Implemented Scope (MVP)
+---
 
-- Tauri + React desktop UI.
-- Initialization wizard for Inbox path and Archive Root path.
-- One-click folder structure bootstrap from `reference.md`.
-- Inbox is an independent input path and is not duplicated under Archive Root.
-- Scheduled processing by hours and manual run.
-- LLM classification (OpenAI-compatible Chat Completions API).
-- File extraction pipeline for:
-  - MinerU API (optional, primary): `pdf`, `doc`, `docx`, `ppt`, `pptx`, `jpg`, `jpeg`, `png`
-  - Built-in Rust fallback: `txt`, `md`, `markdown`, `html`, `htm`, `pdf`, `docx`, `xlsx`, `pptx`, `jpg`, `jpeg`, `png`
-- Rename template: `YYYYMMDD_文档类型_核心标题[#标签][@人物][&备注].扩展名`.
-- Controlled vocabulary + top-level folder constraints.
-- Archive top-level folders use Chinese names: `10_身份基石`, `20_责任领域`, `30_行动项目`, `40_知识金库`, `50_数字资产`, `99_历史档案`.
-- Low-confidence fallback (`confidence < 0.70`) to `Inbox/_Review`.
-- Failure fallback to `Inbox/_Failed`.
-- Recycle strategy for processed source files via app recycle folder (`%APPDATA%/NexArchive/recycle`).
-- SQLite-based jobs/tasks/logs with query APIs.
-- Rotating file log and DB log retention cleanup.
-- Windows autostart setting via registry.
+## 🌟 Core Features
 
-## Commands Implemented
+- **Automated Processing Pipeline**: Periodically scans your `Inbox` folder, performing type-based extraction, LLM-powered classification, and automated archiving without manual intervention.
+- **Intelligent LLM Classification**: Uses OpenAI-compatible Chat Completions API to understand document semantics and assign appropriate tags, people involved, and context.
+- **Advanced File Extraction**: Built-in support for processing a wide variety of formats (`pdf`, `docx`, `pptx`, `xlsx`, `md`, `png`, `jpg`, etc.) with both an optional high-accuracy MinerU API and a robust built-in Rust fallback.
+- **Standardized Retitling & Routing**: Automatically renames files using the template `YYYYMMDD_文档类型_核心标题[#标签][@人物][&备注].扩展名` and routes them into standard top-level Chinese taxonomy folders (e.g., `10_身份基石`, `20_责任领域`, `30_行动项目`, `40_知识金库`, `50_数字资产`, `99_历史档案`).
+- **Safety First**: Implements a dedicated in-app recycle bin (`%APPDATA%/NexArchive/recycle`) for source files, ensuring original files can be safely restored if needed. Unconfident classifications (`< 0.70`) or failures are routed to designated review folders, avoiding misfiling.
+- **Local & Private**: No external runtime dependencies like Python or Tesseract needed. Operations run efficiently on your local system, with API keys safely encrypted.
 
-- `init_system(inbox_path, archive_root_path)`
-- `get_init_preview()`
-- `save_settings(config)`
-- `load_settings()`
-- `test_llm_connection()`
-- `test_mineru_connection()`
-- `run_job_once()`
-- `get_jobs(page, page_size, status, date_range)`
-- `get_file_tasks(job_id, status)`
-- `get_logs(filters)`
-- `restore_from_recycle_bin(task_id)`
+---
 
-## Local Development
+## 📸 Highlights & Previews
 
-### 1. Frontend
+> *Note: Please replace the placeholder image paths below with your actual screenshots in the `docs/images/` directory.*
 
+### 1. Dashboard Overview
+View system metrics, recent processing jobs, and real-time archiving status.
+
+![Dashboard Preview](./docs/images/dashboard.png)
+
+### 2. Rule & Vocabulary Management
+View and manage the directory structure and vocabulary rules used by the LLM.
+
+![Rules Preview](./docs/images/rules.png)
+
+### 3. Settings & Configuration
+Easily configure LLM connections, set up your Inbox/Archive root paths, and adjust extraction priorities.
+
+![Settings Preview](./docs/images/settings.png)
+
+---
+
+## 🛠️ Development Guide
+
+### Start in Development Mode
+Run the React frontend and Tauri backend together with live-reload:
 ```bash
 npm install
-npm run build
-```
-
-### 2. Rust backend
-
-```bash
-cd src-tauri
-cargo check
-```
-
-## Run in dev mode
-
-```bash
 npm run tauri dev
 ```
 
-## Build Installer (Windows)
-
+### Build the Installer (Windows)
+Create the final production `.msi` and `.exe` installers:
 ```bash
 npm run tauri build
 ```
+*Build outputs will be available at `src-tauri/target/release/bundle/msi/` and `src-tauri/target/release/bundle/nsis/`.*
 
-Build outputs:
+---
 
-- `src-tauri/target/release/bundle/msi/NexArchive_<version>_x64_en-US.msi`
-- `src-tauri/target/release/bundle/nsis/NexArchive_<version>_x64-setup.exe`
+## 🚀 Release Workflow
 
-## Release Workflow (Tag Driven)
-
-Prepare a new release version:
+The project uses a Tag-Driven release workflow. To trigger a new release via GitHub Actions (building and publishing release assets and updater metadata), simply create and push a version tag:
 
 ```bash
-npm run release:prepare -- 0.2.0
-npm run release:verify -- 0.2.0
-```
-
-Extract the changelog section for a version:
-
-```bash
-npm run release:extract-notes -- v0.2.0
-```
-
-After committing version changes and changelog updates, push the release tag:
-
-```bash
+# Example: Releasing version v0.2.0
 git tag v0.2.0
 git push origin v0.2.0
 ```
 
-The GitHub workflow `.github/workflows/release.yml` will build and publish release assets and updater metadata.
+*(Note: Ensure your `package.json` version and `tauri.conf.json` versions are bumped before tagging. Internal scripts like `npm run release:prepare` can assist with version and changelog prep).*
 
-## Updater Signing Setup
+---
 
-The updater uses signed artifacts and requires these GitHub secrets:
+## 🔐 Updater Signing Setup
 
+The built-in updater requires signed artifacts to ensure security. The GitHub release workflow requires the following repository secrets:
 - `TAURI_SIGNING_PRIVATE_KEY`
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
 
-Generate keys once locally:
-
+**Generate keys locally (One-time setup):**
 ```bash
 npm run tauri signer generate -w ~/.tauri/nexarchive.key
 ```
-
-Copy the generated public key into `src-tauri/tauri.conf.json` at `plugins.updater.pubkey`.
-
-## Notes
-
-- No external runtime dependencies are required for end users (no Python/Tesseract).
-- Current recycle strategy uses app-managed recycle storage for reliable restore API.
-- API key is encrypted before being persisted to `%APPDATA%/NexArchive/config.json`.
-- The project currently targets Windows (`win10/win11`) only.
+After generation, copy the output public key and replace the value in `src-tauri/tauri.conf.json` under `plugins.updater.pubkey`.
