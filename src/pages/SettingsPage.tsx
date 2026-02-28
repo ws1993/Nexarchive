@@ -212,7 +212,7 @@ export function SettingsPage() {
 
   return (
     <Form layout="vertical" className="settings-form">
-      <Space direction="vertical" size="middle" style={{ width: "100%", paddingBottom: 24 }}>
+      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
         
         {/* Base Settings */}
         <Card className="section-card" title="基础设置">
@@ -291,6 +291,11 @@ export function SettingsPage() {
                 />
               </Form.Item>
             </Col>
+          </Row>
+          <Row justify="end">
+            <Button disabled={!canTestLlm} loading={testingLlm} onClick={onTestLlm}>
+              测试模型连通性
+            </Button>
           </Row>
 
           <Divider orientation="left">MinerU 解析服务（可选，失败自动回退本地解析）</Divider>
@@ -388,6 +393,11 @@ export function SettingsPage() {
                 />
               </Form.Item>
             </Col>
+          </Row>
+          <Row justify="end">
+            <Button disabled={!canTestMineru} loading={testingMineru} onClick={onTestMineru}>
+              测试 MinerU 连通性
+            </Button>
           </Row>
         </Card>
 
@@ -544,21 +554,12 @@ export function SettingsPage() {
           ) : null}
         </Card>
 
-        {/* Action Buttons */}
-        <Row justify="end">
-          <Space>
-            <Button disabled={!canTestLlm} loading={testingLlm} onClick={onTestLlm}>
-              测试模型连通性
-            </Button>
-            <Button disabled={!canTestMineru} loading={testingMineru} onClick={onTestMineru}>
-              测试 MinerU 连通性
-            </Button>
-            <Button type="primary" loading={savingConfig} onClick={onSave} style={{ minWidth: 100 }}>
-              保存设置
-            </Button>
-          </Space>
-        </Row>
       </Space>
+      <div className="settings-save-bar">
+        <Button type="primary" loading={savingConfig} onClick={onSave} style={{ minWidth: 120 }}>
+          保存设置
+        </Button>
+      </div>
     </Form>
   );
 }
