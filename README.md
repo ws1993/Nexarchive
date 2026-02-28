@@ -4,7 +4,7 @@
 
 ---
 
-<a id="english"></a>
+`<a id="english"></a>`
 
 ## 🌐 English
 
@@ -20,8 +20,6 @@ NexArchive is an intelligent Windows desktop application designed for automated 
 - **Local & Private**: No external runtime dependencies like Python or Tesseract needed. Operations run efficiently on your local system, with API keys safely encrypted.
 
 ### 📸 Highlights & Previews
-
-> _Note: Please replace the placeholder image paths below with your actual screenshots in the `docs/images/` directory._
 
 **1. Dashboard Overview**
 View system metrics, recent processing jobs, and real-time archiving status.
@@ -86,7 +84,7 @@ After generation, copy the output public key and replace the value in `src-tauri
 
 ---
 
-<a id="中文"></a>
+`<a id="中文"></a>`
 
 ## 🇨🇳 中文
 
@@ -102,8 +100,6 @@ NexArchive 是一款智能的 Windows 桌面应用程序，专为本地文件的
 - **本地化与隐私**：最终用户不需要安装 Python 或 Tesseract 等外部运行时依赖项。所有操作都在您的本地系统上高效、私密地运行，API 密钥也会被安全加密保存。
 
 ### 📸 核心亮点与预览
-
-> _注：请将下方占位图片替换为 `docs/images/` 目录中真实的系统截图。_
 
 **1. 仪表盘概览**
 查看系统指标、最近的处理任务以及实时的归档状态。
