@@ -4,7 +4,7 @@
 
 ---
 
-`<a id="english"></a>`
+<a id="english"></a>
 
 ## 🌐 English
 
@@ -84,7 +84,7 @@ After generation, copy the output public key and replace the value in `src-tauri
 
 ---
 
-`<a id="中文"></a>`
+<a id="中文"></a>
 
 ## 🇨🇳 中文
 
