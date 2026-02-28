@@ -5,3 +5,8 @@ src-tauri/target/
 *.log
 .DS_Store
 .tauri/
+.agents/
+AGENTS.md
+.agent/
+.trellis/
+
