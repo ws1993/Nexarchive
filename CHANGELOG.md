@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.6] - 2026-02-28
+
+### Changed
+- Adjusted settings page action button layout for improved usability.
+
 ## [0.1.5] - 2026-02-27
 
 ### Build

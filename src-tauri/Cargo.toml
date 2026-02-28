@@ -1,6 +1,6 @@
 [package]
 name = "nexarchive"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 description = "NexArchive Windows local file archiver"
 authors = ["NexArchive"]
